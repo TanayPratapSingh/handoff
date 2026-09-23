@@ -73,3 +73,41 @@ class TestRejections(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBlockScalars(unittest.TestCase):
+    def test_folded_joins_lines_with_spaces(self):
+        doc = loads("k: >\n  one two\n  three\nafter: 1")
+        self.assertEqual(doc["k"], "one two three")
+        self.assertEqual(doc["after"], 1)
+
+    def test_folded_treats_a_blank_line_as_a_paragraph_break(self):
+        doc = loads("k: >\n  first para\n\n  second para")
+        self.assertEqual(doc["k"], "first para\nsecond para")
+
+    def test_literal_keeps_line_breaks(self):
+        doc = loads("k: |\n  one\n  two")
+        self.assertEqual(doc["k"], "one\ntwo")
+
+    def test_strip_chomping_removes_the_trailing_newline(self):
+        self.assertEqual(loads("k: >-\n  text")["k"], "text")
+
+    def test_keep_chomping_adds_one(self):
+        self.assertEqual(loads("k: |+\n  text")["k"], "text\n")
+
+    def test_a_hash_inside_a_block_is_literal_text(self):
+        """A # in a block scalar is a hash, not a comment.
+
+        The scanner resolves blocks before comment stripping for exactly
+        this reason. Getting it wrong silently truncates prose in the
+        scenario files, where every case carries a written rationale.
+        """
+        self.assertEqual(loads("k: >\n  see issue #42 for why")["k"], "see issue #42 for why")
+
+    def test_a_colon_inside_a_block_does_not_start_a_key(self):
+        self.assertEqual(loads("k: >\n  note: this is prose")["k"], "note: this is prose")
+
+    def test_block_scalar_inside_a_nested_map(self):
+        doc = loads("outer:\n  inner: >\n    folded text\n  other: 2")
+        self.assertEqual(doc["outer"]["inner"], "folded text")
+        self.assertEqual(doc["outer"]["other"], 2)

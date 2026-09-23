@@ -1,10 +1,16 @@
 """A YAML subset reader, so the core stays dependency free.
 
-This parses the subset the config files in config/ actually use: nested
-maps, lists of scalars, lists of maps, comments, and the scalar types null,
-bool, int, float and string. It does not parse anchors, aliases, multi
-document streams, flow style, block scalars or tags, and it raises
-ConfigError rather than guessing when it meets one.
+This parses the subset the config files in config/ and evals/ actually
+use: nested maps, lists of scalars, lists of maps, comments, block scalars
+in both folded and literal form, and the scalar types null, bool, int,
+float and string. It does not parse anchors, aliases, multi document
+streams, flow style or tags, and it raises ConfigError rather than
+guessing when it meets one.
+
+Block scalars are resolved in the scanner rather than the parser, because
+their content is literal text: a # inside a block is a hash, not the start
+of a comment, and a blank line is a paragraph break rather than something
+to skip.
 
 The point is not to reimplement YAML. The point is that a reviewer can run
 the test suite on a bare interpreter with no install step, and that the
@@ -22,11 +28,50 @@ from handoff.core.errors import ConfigError
 _REJECTED = ("&", "*", "---", "<<:", "!!")
 
 
+_MISSING = object()
+
+
 @dataclass(frozen=True)
 class _Line:
     indent: int
     text: str
     number: int
+    value: Any = _MISSING
+
+
+def _fold(raw: list[str], style: str, chomp: str) -> str:
+    """Resolve the body of a block scalar.
+
+    style is "|" for literal, which keeps line breaks, or ">" for folded,
+    which joins consecutive non empty lines with a space and treats a
+    blank line as a paragraph break. chomp is "-" to strip the trailing
+    newline, "+" to keep every trailing newline, or "" to clip to one.
+    """
+    if not raw:
+        return ""
+    strip = min((len(x) - len(x.lstrip(" ")) for x in raw if x.strip()), default=0)
+    body = [x[strip:] if len(x) >= strip else "" for x in raw]
+    while body and not body[-1].strip():
+        body.pop()
+
+    if style == "|":
+        text = "\n".join(body)
+    else:
+        out: list[str] = []
+        for line in body:
+            if not line.strip():
+                out.append("\n")
+            elif out and out[-1] != "\n":
+                out[-1] = out[-1] + " " + line.strip()
+            else:
+                out.append(line.strip())
+        text = "".join(out) if any(x == "\n" for x in out) else " ".join(out)
+
+    if chomp == "-":
+        return text.rstrip("\n")
+    if chomp == "+":
+        return text + "\n"
+    return text
 
 
 def _strip_comment(text: str) -> str:
@@ -45,7 +90,11 @@ def _strip_comment(text: str) -> str:
 
 def _scan(text: str) -> list[_Line]:
     lines: list[_Line] = []
-    for number, raw in enumerate(text.splitlines(), start=1):
+    raw_lines = text.splitlines()
+    skip_until = -1
+    for number, raw in enumerate(raw_lines, start=1):
+        if number <= skip_until:
+            continue
         if "\t" in raw[: len(raw) - len(raw.lstrip())]:
             raise ConfigError(f"line {number}: tab used for indentation")
         stripped = raw.strip()
@@ -60,8 +109,35 @@ def _scan(text: str) -> list[_Line]:
                     f"line {number}: {token!r} is outside the supported YAML subset"
                 )
         indent = len(raw) - len(raw.lstrip(" "))
+
+        marker = _block_marker(stripped)
+        if marker is not None:
+            key, style, chomp = marker
+            body: list[str] = []
+            cursor = number
+            while cursor < len(raw_lines):
+                nxt = raw_lines[cursor]
+                if nxt.strip() and (len(nxt) - len(nxt.lstrip(" "))) <= indent:
+                    break
+                body.append(nxt)
+                cursor += 1
+            skip_until = cursor
+            lines.append(_Line(indent, f"{key}:", number, _fold(body, style, chomp)))
+            continue
+
         lines.append(_Line(indent, content, number))
     return lines
+
+
+def _block_marker(stripped: str) -> tuple[str, str, str] | None:
+    """Recognise 'key: >', 'key: |', and their chomping variants."""
+    if ":" not in stripped:
+        return None
+    key, _, rest = stripped.partition(":")
+    rest = rest.strip()
+    if rest not in (">", "|", ">-", "|-", ">+", "|+"):
+        return None
+    return key.strip(), rest[0], rest[1:]
 
 
 def _scalar(text: str) -> Any:
@@ -112,6 +188,9 @@ def _parse_map(lines: list[_Line], pos: int, indent: int) -> tuple[dict[str, Any
         if key in out:
             raise ConfigError(f"line {line.number}: duplicate key {key!r}")
         pos += 1
+        if line.value is not _MISSING:
+            out[key] = line.value
+            continue
         if rest:
             out[key] = _scalar(rest)
             continue
