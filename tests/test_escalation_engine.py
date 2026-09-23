@@ -307,3 +307,146 @@ class TestDeadlineHold(EngineCase):
         self.clock.advance(seconds=600)
         self.engine.tick()
         self.assertEqual(len(self.engine.open()), 1)
+
+
+class TestQuorum(EngineCase):
+    def setUp(self):
+        self.build(Rule(Risk.CRITICAL, True, ("t1", "t2", "t3"), 600, OnExpiry.HOLD, quorum=2))
+
+    def raise_critical(self):
+        return self.raise_one("delete_volume", {"volume": "pvc-7"})
+
+    def test_one_approval_is_not_enough(self):
+        esc = self.raise_critical()
+        self.engine.decide(esc.id, "one", Decision.APPROVE)
+        self.assertNotEqual(esc.state, EscalationState.APPROVED)
+        self.assertEqual(esc.state, EscalationState.ASSIGNED)
+
+    def test_first_approval_moves_to_the_next_tier_for_a_second(self):
+        esc = self.raise_critical()
+        self.engine.decide(esc.id, "one", Decision.APPROVE)
+        self.assertEqual(esc.assignee, "two")
+
+    def test_two_approvals_resolve(self):
+        esc = self.raise_critical()
+        self.engine.decide(esc.id, "one", Decision.APPROVE)
+        self.engine.decide(esc.id, "two", Decision.APPROVE)
+        self.assertEqual(esc.state, EscalationState.APPROVED)
+        self.assertEqual(esc.approvals, ["one", "two"])
+        self.assertTrue(self.engine.resolution(esc).should_run)
+
+    def test_one_rejection_after_one_approval_still_stops_it(self):
+        esc = self.raise_critical()
+        self.engine.decide(esc.id, "one", Decision.APPROVE)
+        self.engine.decide(esc.id, "two", Decision.REJECT, note="not during peak")
+        self.assertEqual(esc.state, EscalationState.REJECTED)
+        self.assertFalse(self.engine.resolution(esc).should_run)
+
+    def test_the_same_person_cannot_supply_both_signatures(self):
+        """A quorum of two must mean two people.
+
+        One responder sits on every tier here, so if the engine did not
+        exclude prior approvers the ladder would hand the escalation back
+        to the same person and the two person rule would be decorative.
+        """
+        self.build(
+            Rule(Risk.CRITICAL, True, ("t1", "t2"), 600, OnExpiry.HOLD, quorum=2),
+            responders=[
+                Responder("solo", "Solo", "t1", frozenset({"infra"}), max_concurrent=9),
+                Responder("solo2", "Solo Two", "t2", frozenset({"infra"}), max_concurrent=9),
+            ],
+        )
+        esc = self.raise_critical()
+        self.engine.decide(esc.id, "solo", Decision.APPROVE)
+        self.assertEqual(esc.assignee, "solo2")
+        self.engine.decide(esc.id, "solo2", Decision.APPROVE)
+        self.assertEqual(sorted(esc.approvals), ["solo", "solo2"])
+
+    def test_quorum_unmet_when_the_ladder_runs_out(self):
+        self.build(
+            Rule(Risk.CRITICAL, True, ("t1", "t2"), 600, OnExpiry.HOLD, quorum=2),
+            responders=[Responder("one", "One", "t1", frozenset({"infra"}))],
+        )
+        esc = self.raise_critical()
+        self.engine.decide(esc.id, "one", Decision.APPROVE)
+        self.assertEqual(esc.state, EscalationState.EXHAUSTED)
+        self.assertFalse(self.engine.resolution(esc).should_run)
+
+
+class TestNoResponderAvailable(EngineCase):
+    def test_an_empty_tier_costs_no_time(self):
+        """A tier with nobody free is skipped immediately, not waited on."""
+        self.build(
+            Rule(Risk.HIGH, True, ("t1", "t2", "t3"), 300, OnExpiry.ESCALATE),
+            responders=[
+                Responder("one", "One", "t1", frozenset({"infra"}), available=False),
+                Responder("two", "Two", "t2", frozenset({"infra"}), available=False),
+                Responder("three", "Three", "t3", frozenset({"infra"})),
+            ],
+        )
+        before = self.clock.now()
+        esc = self.raise_one()
+        self.assertEqual(esc.assignee, "three")
+        self.assertEqual(self.clock.now(), before)
+
+    def test_nobody_anywhere_exhausts_at_once(self):
+        self.build(
+            Rule(Risk.HIGH, True, ("t1", "t2"), 300, OnExpiry.ESCALATE),
+            responders=[
+                Responder("one", "One", "t1", available=False),
+                Responder("two", "Two", "t2", available=False),
+            ],
+        )
+        esc = self.raise_one()
+        self.assertEqual(esc.state, EscalationState.EXHAUSTED)
+        self.assertEqual(self.journal.count(EventKind.ESCALATION_EXHAUSTED), 1)
+
+    def test_a_skill_gap_skips_the_tier(self):
+        self.build(
+            Rule(Risk.HIGH, True, ("t1", "t2"), 300, OnExpiry.ESCALATE,
+                 required_skill="database"),
+            responders=[
+                Responder("one", "One", "t1", frozenset({"application"})),
+                Responder("two", "Two", "t2", frozenset({"database"})),
+            ],
+        )
+        esc = self.raise_one()
+        self.assertEqual(esc.assignee, "two")
+
+    def test_a_saturated_responder_is_passed_over(self):
+        self.build(
+            Rule(Risk.HIGH, True, ("t1", "t2"), 300, OnExpiry.ESCALATE),
+            responders=[
+                Responder("one", "One", "t1", max_concurrent=1),
+                Responder("two", "Two", "t2"),
+            ],
+        )
+        first = self.raise_one()
+        second = self.raise_one()
+        self.assertEqual(first.assignee, "one")
+        self.assertEqual(second.assignee, "two")
+
+
+class TestAudit(EngineCase):
+    def test_audit_renders_the_whole_path(self):
+        self.build(Rule(Risk.HIGH, True, ("t1", "t2"), 300, OnExpiry.ESCALATE))
+        esc = self.raise_one()
+        self.clock.advance(seconds=300)
+        self.engine.tick()
+        self.engine.decide(esc.id, "two", Decision.APPROVE)
+        text = esc.audit()
+        self.assertIn("t1/one", text)
+        self.assertIn("no answer", text)
+        self.assertIn("t2/two", text)
+        self.assertIn("approve", text)
+
+    def test_every_escalation_leaves_a_journal_trail(self):
+        self.build(Rule(Risk.HIGH, True, ("t1",), 300, OnExpiry.DENY))
+        esc = self.raise_one()
+        self.clock.advance(seconds=300)
+        self.engine.tick()
+        trail = [e.kind for e in self.journal.for_incident(esc.incident_id)]
+        self.assertIn(EventKind.ESCALATION_RAISED, trail)
+        self.assertIn(EventKind.ESCALATION_ASSIGNED, trail)
+        self.assertIn(EventKind.ESCALATION_EXPIRED, trail)
+        self.assertIn(EventKind.ACTION_DENIED, trail)
