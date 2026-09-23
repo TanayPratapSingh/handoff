@@ -1,0 +1,23 @@
+name: observe mode diagnoses and executes nothing
+why_this_case_exists: >
+  Observe is the setting a team uses in week one, and its value depends
+  entirely on still producing a real diagnosis. A mode that reports
+  nothing is off, not observing.
+
+autonomy: observe
+
+incident:
+  title: Checkout p99 latency spike
+  service: checkout
+  symptom: latency and errors after deploy
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.21
+    latency_p99_ms: 2400
+    healthy: false
+
+expect:
+  not_executed: [page_vendor, restart_service, scale_deployment]
+  confirmed: [service_degraded, capacity_shortfall]
