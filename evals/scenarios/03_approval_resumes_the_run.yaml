@@ -1,0 +1,25 @@
+name: approval resumes the run on the same step
+why_this_case_exists: >
+  Resuming is the part that is easy to get subtly wrong. A run that
+  restarts from the beginning after approval would re run the diagnosis
+  and could re propose the cheap actions it already took.
+
+incident:
+  title: Checkout p99 latency spike
+  service: checkout
+  symptom: latency and errors after deploy
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.21
+    latency_p99_ms: 2400
+    healthy: false
+
+decisions:
+  - decision: approve
+    note: peak has passed
+
+expect:
+  end_state: resolved
+  executed: [page_vendor, restart_service, scale_deployment]
