@@ -183,3 +183,161 @@ class EscalationEngine:
         for attempt in esc.attempts:
             if attempt.responder_id:
                 self.roster.release(attempt.responder_id)
+
+    # deciding
+
+    def decide(
+        self,
+        escalation_id: str,
+        responder_id: str,
+        decision: Decision,
+        note: str = "",
+        modified_args: dict[str, Any] | None = None,
+    ) -> Escalation:
+        """Record a human decision.
+
+        A rejection is final and does not ladder onward. The asymmetry is
+        deliberate: one person saying no is enough to stop an irreversible
+        action, while one person saying yes may not be enough to start it.
+        """
+        esc = self._escalations[escalation_id]
+        if esc.state.is_terminal:
+            raise ValueError(f"escalation {esc.id} is already {esc.state}")
+        if not esc.attempts:
+            raise ValueError(f"escalation {esc.id} has no open attempt to decide")
+
+        attempt = esc.attempts[-1]
+        if attempt.responder_id != responder_id:
+            raise ValueError(
+                f"escalation {esc.id} is assigned to {attempt.responder_id}, "
+                f"not {responder_id}"
+            )
+        attempt.answered = True
+        attempt.decision = decision
+        attempt.note = note
+        esc.state = EscalationState.ASSIGNED
+
+        self._emit(
+            EventKind.ESCALATION_DECIDED, esc, actor=responder_id,
+            decision=str(decision), note=note, tier=attempt.tier,
+        )
+
+        if decision is Decision.REJECT:
+            esc.state = EscalationState.REJECTED
+            esc.resolved_at = self.clock.now()
+            esc.resolution_note = note or f"rejected by {responder_id}"
+            self._release(esc)
+            return esc
+
+        if decision is Decision.DEFER:
+            esc.tier_index += 1
+            self._release_one(responder_id)
+            return self._assign(esc)
+
+        if decision is Decision.MODIFY:
+            if modified_args is None:
+                raise ValueError("Decision.MODIFY requires modified_args")
+            esc.modified_args = dict(modified_args)
+
+        esc.approvals.append(responder_id)
+        if len(esc.approvals) >= esc.quorum:
+            esc.state = EscalationState.APPROVED
+            esc.resolved_at = self.clock.now()
+            esc.resolution_note = (
+                f"approved by {', '.join(esc.approvals)}"
+                + (" with edited arguments" if esc.modified_args is not None else "")
+            )
+            self._release(esc)
+            return esc
+
+        # Quorum not met. Climb to the next tier for another signature.
+        esc.tier_index += 1
+        self._release_one(responder_id)
+        return self._assign(esc)
+
+    def _release_one(self, responder_id: str | None) -> None:
+        if responder_id:
+            self.roster.release(responder_id)
+
+    # the clock
+
+    def tick(self) -> list[Escalation]:
+        """Fire every deadline that has passed. Returns what changed.
+
+        Callers drive this. Nothing in this system runs on a background
+        thread, because a deadline that fires on a timer you cannot control
+        is a deadline you cannot test.
+        """
+        now = self.clock.now()
+        fired: list[Escalation] = []
+        for esc in list(self._escalations.values()):
+            if not esc.is_overdue(now):
+                continue
+            attempt = esc.attempts[-1]
+            self._emit(
+                EventKind.ESCALATION_EXPIRED, esc,
+                tier=attempt.tier, responder=attempt.responder_id,
+                waited_seconds=int((now - attempt.assigned_at).total_seconds()),
+                on_expiry=str(esc.on_expiry),
+            )
+            self._apply_expiry(esc)
+            fired.append(esc)
+        return fired
+
+    def _apply_expiry(self, esc: Escalation) -> Escalation:
+        self._release_one(esc.attempts[-1].responder_id)
+
+        if esc.on_expiry is OnExpiry.ESCALATE:
+            esc.tier_index += 1
+            if esc.current_tier is None:
+                return self._exhaust(esc)
+            return self._assign(esc)
+
+        if esc.on_expiry is OnExpiry.HOLD:
+            esc.state = EscalationState.HELD
+            esc.resolution_note = (
+                "held: the incident is frozen until a human acts on this"
+            )
+            self._emit(EventKind.INCIDENT_FROZEN, esc, why="escalation held on timeout")
+            return esc
+
+        if esc.on_expiry is OnExpiry.SAFE_FALLBACK:
+            if esc.safe_fallback is None:
+                esc.state = EscalationState.DENIED_ON_TIMEOUT
+                esc.resolved_at = self.clock.now()
+                esc.resolution_note = (
+                    f"policy asked for a safe fallback but {esc.tool} declares none, "
+                    f"so the action was dropped"
+                )
+                self._emit(EventKind.ACTION_DENIED, esc, why="no fallback declared")
+                return esc
+            esc.state = EscalationState.FELL_BACK
+            esc.resolved_at = self.clock.now()
+            esc.resolution_note = f"nobody answered, ran {esc.safe_fallback} instead"
+            self._emit(
+                EventKind.ACTION_ALLOWED, esc,
+                substituted=esc.safe_fallback, why="safe fallback on timeout",
+            )
+            return esc
+
+        esc.state = EscalationState.DENIED_ON_TIMEOUT
+        esc.resolved_at = self.clock.now()
+        esc.resolution_note = "nobody answered in time, action dropped"
+        self._emit(EventKind.ACTION_DENIED, esc, why="deadline passed with no answer")
+        return esc
+
+    # resolution
+
+    def resolution(self, esc: Escalation) -> Resolution:
+        """Translate a terminal escalation into what should now happen."""
+        if esc.state is EscalationState.APPROVED:
+            return Resolution(esc, True, esc.tool, esc.effective_args, esc.resolution_note)
+        if esc.state is EscalationState.FELL_BACK:
+            args: dict[str, Any] = {}
+            if self.registry is not None and esc.safe_fallback:
+                fallback = self.registry.get(esc.safe_fallback)
+                args = {
+                    f.name: esc.args[f.name] for f in fallback.fields if f.name in esc.args
+                }
+            return Resolution(esc, True, esc.safe_fallback, args, esc.resolution_note)
+        return Resolution(esc, False, None, {}, esc.resolution_note)
