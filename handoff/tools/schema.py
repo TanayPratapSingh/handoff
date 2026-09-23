@@ -30,10 +30,19 @@ class Field:
             if self.required:
                 raise ValidationError(tool, self.name, "is required")
             return self.default
-        if self.type is float and isinstance(value, int) and not isinstance(value, bool):
-            value = float(value)
+        # bool is a subclass of int in Python, so isinstance(True, int) is
+        # True. Without this guard scale_deployment(replicas=True) validates
+        # and scales the service to one replica. Both directions are closed:
+        # a bool is never accepted as a number, and a number is never
+        # accepted as a bool.
+        if isinstance(value, bool) and self.type is not bool:
+            raise ValidationError(
+                tool, self.name, f"expected {self.type.__name__}, got bool"
+            )
         if self.type is bool and not isinstance(value, bool):
             raise ValidationError(tool, self.name, f"expected bool, got {type(value).__name__}")
+        if self.type is float and isinstance(value, int):
+            value = float(value)
         if not isinstance(value, self.type):
             raise ValidationError(
                 tool, self.name, f"expected {self.type.__name__}, got {type(value).__name__}"
