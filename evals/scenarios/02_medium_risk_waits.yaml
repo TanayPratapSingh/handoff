@@ -1,0 +1,23 @@
+name: medium risk stops and waits for a human
+why_this_case_exists: >
+  The top of the guarded range. Same incident and same evidence as
+  scenario 01, and the system stops. If this ever passes without an
+  escalation then the escalation threshold has drifted and every claim
+  the project makes about supervision is void.
+
+incident:
+  title: Checkout p99 latency spike
+  service: checkout
+  symptom: latency and errors after deploy
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.21
+    latency_p99_ms: 2400
+    healthy: false
+
+expect:
+  end_state: awaiting_human
+  escalated: [scale_deployment]
+  not_executed: [scale_deployment]
