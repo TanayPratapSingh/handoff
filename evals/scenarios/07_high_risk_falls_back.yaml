@@ -1,0 +1,31 @@
+name: an unanswered high risk action runs its safer substitute
+why_this_case_exists: >
+  Checkout is healthy here so nothing cheaper gets proposed first and the
+  failover is the only option on the table. Nobody answers inside the
+  deadline. The system must neither fail over nor sit still: it puts the
+  database into read only mode, which is reversible and loses no data.
+
+incident:
+  title: Orders replication lag climbing
+  service: checkout
+  symptom: replication lag
+  severity: sev1
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.005
+    latency_p99_ms: 180
+    healthy: true
+
+database:
+  replication_lag_s: 42.0
+
+advance_seconds: [200]
+
+expect:
+  escalated: [failover_database]
+  not_executed: [failover_database]
+  executed: [enable_read_only]
+  substituted: [enable_read_only]
+  confirmed: [database_fault]
