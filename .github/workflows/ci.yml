@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # No install step on purpose. The core has no third party
+      # dependencies, and this job proves it on a clean runner.
+      - name: unit tests on a bare interpreter
+        run: python -m unittest discover -s tests -v
+
+      - name: scenario suite
+        run: python -m handoff.cli scenarios --dir evals/scenarios
+
+      - name: demo runs end to end
+        run: python -m handoff.cli demo
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check handoff tests
+      - run: ruff format --check handoff tests
