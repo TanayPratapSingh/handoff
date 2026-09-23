@@ -1,0 +1,25 @@
+name: a contested diagnosis raises a low risk action to medium
+why_this_case_exists: >
+  The log analyst sees a high error rate and the metrics analyst sees
+  healthy latency. Both are confident and they disagree. Restarting a
+  service is low risk and would normally run unattended, but the system
+  is no longer sure it is the right thing to do, so it asks.
+
+incident:
+  title: Checkout errors up, latency flat
+  service: checkout
+  symptom: errors without latency
+  severity: sev3
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.25
+    latency_p99_ms: 300
+    healthy: true
+
+expect:
+  end_state: awaiting_human
+  contested: [service_degraded]
+  escalated: [restart_service]
+  not_executed: [restart_service]
