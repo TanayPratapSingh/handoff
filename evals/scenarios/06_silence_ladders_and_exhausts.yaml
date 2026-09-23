@@ -1,0 +1,24 @@
+name: silence on a medium action climbs the ladder and then gives up
+why_this_case_exists: >
+  The unanswered escalation is the case this project exists for. Two
+  tiers are paged, neither answers, and the action is not taken. The
+  important assertion is the negative one: scale_deployment must not run
+  just because the system got tired of waiting.
+
+incident:
+  title: Checkout p99 latency spike
+  service: checkout
+  symptom: latency and errors after deploy
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.21
+    latency_p99_ms: 2400
+    healthy: false
+
+advance_seconds: [310, 310, 310]
+
+expect:
+  not_executed: [scale_deployment]
+  escalated: [scale_deployment]
