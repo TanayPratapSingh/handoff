@@ -220,8 +220,90 @@ def register_mutating(registry: ToolRegistry) -> ToolRegistry:
     return registry
 
 
+# Destructive tools. High or critical. Two of them cannot be undone, and
+# those two are the reason the escalation layer exists at all.
+
+
+def _snapshot_volume(world: World, args: dict[str, Any]) -> dict[str, Any]:
+    world.snapshots.append(args["volume"])
+    return {"volume": args["volume"], "snapshots": len(world.snapshots)}
+
+
+def _failover_database(world: World, args: dict[str, Any]) -> dict[str, Any]:
+    db = world.database
+    target = args["target"]
+    if target not in db.replicas:
+        raise ValueError(f"{target} is not a replica of {db.name}")
+    old_primary = db.primary
+    remaining = tuple(r for r in db.replicas if r != target)
+    db.primary = target
+    db.replicas = (*remaining, old_primary)
+    db.failovers += 1
+    db.replication_lag_s = 0.0
+    return {"database": db.name, "from": old_primary, "to": target, "failovers": db.failovers}
+
+
+def _force_terminate(world: World, args: dict[str, Any]) -> dict[str, Any]:
+    svc = world.service(args["service"])
+    svc.replicas = 0
+    svc.healthy = False
+    return {"service": svc.name, "replicas": 0, "healthy": False}
+
+
+def _delete_volume(world: World, args: dict[str, Any]) -> dict[str, Any]:
+    volume = args["volume"]
+    world.deleted_volumes.append(volume)
+    return {"volume": volume, "recoverable": volume in world.snapshots}
+
+
+def register_destructive(registry: ToolRegistry) -> ToolRegistry:
+    registry.register(Tool(
+        name="snapshot_volume",
+        description="Take a point in time snapshot of a volume",
+        risk=Risk.LOW,
+        fields=(Field("volume", str),),
+        run=_snapshot_volume,
+        blast_radius="storage cost and some io while it runs",
+    ))
+    registry.register(Tool(
+        name="failover_database",
+        description="Promote a replica to primary",
+        risk=Risk.HIGH,
+        fields=(Field("target", str, description="replica to promote"),),
+        run=_failover_database,
+        reversible=False,
+        blast_radius="every writer reconnects, in flight transactions are lost",
+        safe_fallback="enable_read_only",
+    ))
+    registry.register(Tool(
+        name="force_terminate",
+        description="Terminate every pod of a service without draining",
+        risk=Risk.HIGH,
+        fields=(SERVICE,),
+        run=_force_terminate,
+        reversible=False,
+        blast_radius="service goes to zero, in flight requests dropped",
+        safe_fallback="restart_service",
+    ))
+    registry.register(Tool(
+        name="delete_volume",
+        description="Permanently delete a persistent volume",
+        risk=Risk.CRITICAL,
+        fields=(Field("volume", str),),
+        run=_delete_volume,
+        reversible=False,
+        blast_radius="data is gone unless a snapshot exists, no undo",
+        safe_fallback="snapshot_volume",
+    ))
+    return registry
+
+
 def build_registry() -> ToolRegistry:
     registry = ToolRegistry()
     register_readonly(registry)
     register_mutating(registry)
+    register_destructive(registry)
+    problems = registry.check_fallbacks()
+    if problems:
+        raise ValueError('broken safe_fallback declarations: ' + '; '.join(problems))
     return registry
