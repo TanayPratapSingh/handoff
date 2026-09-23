@@ -1,0 +1,48 @@
+# Escalation policy.
+#
+# One rule per risk level. Every rule that requires approval must state
+# on_expiry, because there is no safe default for what happens when nobody
+# answers. Policy.from_config refuses to load a rule that leaves it out.
+#
+# on_expiry values: deny, safe_fallback, escalate, hold
+# There is no "allow". See docs/adr/0004.
+
+autonomy: guarded
+escalate_at_or_above: medium
+
+rules:
+
+  read_only:
+    requires_approval: false
+    ladder: []
+    deadline_seconds: 0
+    on_expiry: deny
+
+  low:
+    requires_approval: false
+    ladder: []
+    deadline_seconds: 0
+    on_expiry: deny
+
+  medium:
+    requires_approval: true
+    ladder: [primary, secondary]
+    deadline_seconds: 300
+    on_expiry: escalate
+    quorum: 1
+
+  high:
+    requires_approval: true
+    ladder: [primary, secondary, incident_commander]
+    deadline_seconds: 180
+    on_expiry: safe_fallback
+    quorum: 1
+    required_skill: infrastructure
+
+  critical:
+    requires_approval: true
+    ladder: [incident_commander, engineering_manager, director]
+    deadline_seconds: 600
+    on_expiry: hold
+    quorum: 2
+    required_skill: infrastructure
