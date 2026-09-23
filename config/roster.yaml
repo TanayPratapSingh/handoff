@@ -1,0 +1,56 @@
+# On call roster.
+#
+# Every tier named in config/policy.yaml must have at least one responder
+# here or Roster.from_config refuses to load. A ladder rung that nobody
+# stands on is a dead end that only shows up during an incident.
+
+tiers:
+  - primary
+  - secondary
+  - incident_commander
+  - engineering_manager
+  - director
+
+responders:
+
+  - id: ana
+    name: Ana Duarte
+    tier: primary
+    skills: [infrastructure, database, network]
+    max_concurrent: 2
+
+  - id: bo
+    name: Bo Lindqvist
+    tier: primary
+    skills: [infrastructure, application]
+    max_concurrent: 2
+
+  - id: chi
+    name: Chi Nakamura
+    tier: secondary
+    skills: [infrastructure, database]
+    max_concurrent: 3
+
+  - id: dev
+    name: Dev Raman
+    tier: secondary
+    skills: [application]
+    max_concurrent: 3
+
+  - id: eli
+    name: Eli Okonkwo
+    tier: incident_commander
+    skills: [infrastructure, database, application, network]
+    max_concurrent: 4
+
+  - id: fay
+    name: Fay Mercer
+    tier: engineering_manager
+    skills: [infrastructure, application]
+    max_concurrent: 4
+
+  - id: gus
+    name: Gus Halvorsen
+    tier: director
+    skills: [infrastructure, database, application, network]
+    max_concurrent: 6
