@@ -62,8 +62,7 @@ class Aggregate:
     def confirmed(self, threshold: float = 0.6) -> list[str]:
         """Hypotheses supported strongly enough to act on, and uncontested."""
         return sorted(
-            h.name for h in self.hypotheses.values()
-            if not h.contested and h.support >= threshold
+            h.name for h in self.hypotheses.values() if not h.contested and h.support >= threshold
         )
 
     def actionable(self, threshold: float = 0.6) -> list[str]:
@@ -86,7 +85,8 @@ class Aggregate:
 
     def rejected(self, threshold: float = 0.6) -> list[str]:
         return sorted(
-            h.name for h in self.hypotheses.values()
+            h.name
+            for h in self.hypotheses.values()
             if not h.contested and h.against >= threshold and h.support == 0.0
         )
 

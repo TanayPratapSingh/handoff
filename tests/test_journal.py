@@ -49,9 +49,7 @@ class TestQueries(JournalCase):
     def test_count_and_last(self):
         self.assertEqual(self.journal.count(EventKind.ESCALATION_RAISED), 1)
         self.assertEqual(self.journal.last().kind, EventKind.ESCALATION_RAISED)
-        self.assertEqual(
-            self.journal.last(EventKind.INCIDENT_OPENED).incident_id, "inc_b"
-        )
+        self.assertEqual(self.journal.last(EventKind.INCIDENT_OPENED).incident_id, "inc_b")
 
     def test_last_of_absent_kind_is_none(self):
         self.assertIsNone(self.journal.last(EventKind.INCIDENT_CLOSED))

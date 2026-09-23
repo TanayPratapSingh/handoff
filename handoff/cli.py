@@ -38,8 +38,9 @@ def _section(text: str) -> None:
 
 def cmd_policy(args: argparse.Namespace) -> int:
     policy = Policy.from_config(args.policy or CONFIG_DIR / "policy.yaml")
-    _heading(f"policy  autonomy={policy.autonomy}  "
-             f"escalate at or above {policy.escalate_at_or_above}")
+    _heading(
+        f"policy  autonomy={policy.autonomy}  escalate at or above {policy.escalate_at_or_above}"
+    )
     header = f"{'risk':<12}{'approval':<10}{'deadline':<10}{'on expiry':<16}{'quorum':<8}ladder"
     print(header)
     print(THIN)
@@ -73,12 +74,14 @@ def _act_one() -> None:
     _heading("ACT 1  guarded autonomy: act on the cheap things, stop at the rest")
     clock = ManualClock()
     system = build(clock=clock, world=World.sample(), seed=7)
-    run = system.supervisor.open(Incident(
-        title="Checkout p99 latency spike",
-        service="checkout",
-        symptom="latency and errors after deploy",
-        severity=Severity.SEV2,
-    ))
+    run = system.supervisor.open(
+        Incident(
+            title="Checkout p99 latency spike",
+            service="checkout",
+            symptom="latency and errors after deploy",
+            severity=Severity.SEV2,
+        )
+    )
     system.supervisor.advance(run)
 
     print(f"\n{run.incident.describe()}")
@@ -99,7 +102,9 @@ def _act_one() -> None:
     print(f"  deadline   {escalation.deadline_seconds}s, then {escalation.on_expiry}")
 
     system.engine.decide(
-        escalation.id, escalation.assignee, Decision.APPROVE,
+        escalation.id,
+        escalation.assignee,
+        Decision.APPROVE,
         note="peak has passed, capacity is fine",
     )
     system.supervisor.advance(run)
@@ -112,12 +117,14 @@ def _act_two() -> None:
     _heading("ACT 2  nobody answers a medium action: it climbs the ladder")
     clock = ManualClock()
     system = build(clock=clock, world=World.sample(), seed=7)
-    run = system.supervisor.open(Incident(
-        title="Checkout p99 latency spike",
-        service="checkout",
-        symptom="latency and errors after deploy",
-        severity=Severity.SEV2,
-    ))
+    run = system.supervisor.open(
+        Incident(
+            title="Checkout p99 latency spike",
+            service="checkout",
+            symptom="latency and errors after deploy",
+            severity=Severity.SEV2,
+        )
+    )
     system.supervisor.advance(run)
 
     escalation = system.engine.get(run.blocked_on)
@@ -151,18 +158,23 @@ def _act_two_b() -> None:
     clock = ManualClock()
     # Checkout is healthy here. The only fault is database replication lag,
     # so the planner proposes a failover and nothing cheaper gets in first.
-    world = World(services={
-        "checkout": Service("checkout", replicas=6, error_rate=0.005,
-                            latency_p99_ms=180, healthy=True),
-    })
+    world = World(
+        services={
+            "checkout": Service(
+                "checkout", replicas=6, error_rate=0.005, latency_p99_ms=180, healthy=True
+            ),
+        }
+    )
     world.database.replication_lag_s = 42.0
     system = build(clock=clock, world=world, seed=7)
-    run = system.supervisor.open(Incident(
-        title="Orders replication lag climbing",
-        service="checkout",
-        symptom="replication lag",
-        severity=Severity.SEV1,
-    ))
+    run = system.supervisor.open(
+        Incident(
+            title="Orders replication lag climbing",
+            service="checkout",
+            symptom="replication lag",
+            severity=Severity.SEV1,
+        )
+    )
     system.supervisor.advance(run)
 
     escalation = system.engine.get(run.blocked_on)
@@ -198,17 +210,22 @@ def _act_two_b() -> None:
 def _act_three() -> None:
     _heading("ACT 4  the workers disagree, so a low risk action buys a review")
     clock = ManualClock()
-    world = World(services={
-        "checkout": Service("checkout", replicas=6, error_rate=0.25,
-                            latency_p99_ms=300, healthy=True),
-    })
+    world = World(
+        services={
+            "checkout": Service(
+                "checkout", replicas=6, error_rate=0.25, latency_p99_ms=300, healthy=True
+            ),
+        }
+    )
     system = build(clock=clock, world=world, seed=7)
-    run = system.supervisor.open(Incident(
-        title="Checkout errors up, latency flat",
-        service="checkout",
-        symptom="errors without latency",
-        severity=Severity.SEV3,
-    ))
+    run = system.supervisor.open(
+        Incident(
+            title="Checkout errors up, latency flat",
+            service="checkout",
+            symptom="errors without latency",
+            severity=Severity.SEV3,
+        )
+    )
     system.supervisor.advance(run)
 
     _section("the disagreement")

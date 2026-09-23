@@ -24,19 +24,23 @@ def plan(incident: Incident, ids: IdGenerator | None = None) -> list[Subtask]:
     ids = ids or IdGenerator()
     subtasks: list[Subtask] = []
     for capability in DIAGNOSTIC_CAPABILITIES:
-        subtasks.append(Subtask(
+        subtasks.append(
+            Subtask(
+                id=ids.subtask(),
+                capability=capability,
+                description=f"inspect {capability} for {incident.service}",
+                args={"service": incident.service, "symptom": incident.symptom},
+            )
+        )
+    subtasks.append(
+        Subtask(
             id=ids.subtask(),
-            capability=capability,
-            description=f"inspect {capability} for {incident.service}",
-            args={"service": incident.service, "symptom": incident.symptom},
-        ))
-    subtasks.append(Subtask(
-        id=ids.subtask(),
-        capability="remediation",
-        description=f"propose remediation for {incident.service}",
-        args={"service": incident.service},
-        depends_on=tuple(s.id for s in subtasks),
-    ))
+            capability="remediation",
+            description=f"propose remediation for {incident.service}",
+            args={"service": incident.service},
+            depends_on=tuple(s.id for s in subtasks),
+        )
+    )
     return subtasks
 
 

@@ -18,13 +18,16 @@ from handoff.tools.world import Service, World
 
 
 def disagreeing_world() -> World:
-    return World(services={
-        # 0.25 error rate gives 750 error lines in the 15 minute window, so
-        # the log analyst supports service_degraded. 300ms p99 is under the
-        # 1000ms saturation bar, so the metrics analyst contradicts it.
-        "checkout": Service("checkout", replicas=6, error_rate=0.25,
-                            latency_p99_ms=300, healthy=True),
-    })
+    return World(
+        services={
+            # 0.25 error rate gives 750 error lines in the 15 minute window, so
+            # the log analyst supports service_degraded. 300ms p99 is under the
+            # 1000ms saturation bar, so the metrics analyst contradicts it.
+            "checkout": Service(
+                "checkout", replicas=6, error_rate=0.25, latency_p99_ms=300, healthy=True
+            ),
+        }
+    )
 
 
 class ContestedCase(unittest.TestCase):
@@ -32,11 +35,13 @@ class ContestedCase(unittest.TestCase):
         self.clock = ManualClock()
         self.world = disagreeing_world()
         self.sys = build(clock=self.clock, world=self.world, seed=7)
-        self.run = self.sys.supervisor.open(Incident(
-            title="Checkout error rate is up but latency looks fine",
-            service="checkout",
-            symptom="errors without latency",
-        ))
+        self.run = self.sys.supervisor.open(
+            Incident(
+                title="Checkout error rate is up but latency looks fine",
+                service="checkout",
+                symptom="errors without latency",
+            )
+        )
         self.sys.supervisor.advance(self.run)
 
 
@@ -64,12 +69,8 @@ class TestContestRaisesRisk(ContestedCase):
         self.assertEqual(self.sys.supervisor.tools.get("restart_service").risk, Risk.LOW)
 
     def test_but_a_contested_diagnosis_pushes_it_to_medium(self):
-        proposal = next(
-            p for p in self.run.aggregate.proposals if p.tool == "restart_service"
-        )
-        self.assertEqual(
-            self.sys.supervisor.effective_risk(proposal, self.run), Risk.MEDIUM
-        )
+        proposal = next(p for p in self.run.aggregate.proposals if p.tool == "restart_service")
+        self.assertEqual(self.sys.supervisor.effective_risk(proposal, self.run), Risk.MEDIUM)
 
     def test_so_a_low_risk_action_now_asks_a_human(self):
         """The whole point. Uncertainty about the diagnosis buys a review."""
@@ -89,9 +90,13 @@ class TestContestRaisesRisk(ContestedCase):
 
     def test_an_uncontested_run_does_not_raise_the_risk(self):
         clean = build(clock=ManualClock(), world=World.sample(), seed=7)
-        run = clean.supervisor.open(Incident(
-            title="Checkout latency", service="checkout", symptom="latency",
-        ))
+        run = clean.supervisor.open(
+            Incident(
+                title="Checkout latency",
+                service="checkout",
+                symptom="latency",
+            )
+        )
         clean.supervisor.advance(run)
         restarts = [a for a in run.executed if a.tool == "restart_service"]
         self.assertEqual(len(restarts), 1)
@@ -102,7 +107,9 @@ class TestResolvingAContest(ContestedCase):
     def test_a_human_can_approve_through_the_contest(self):
         escalation = self.sys.engine.get(self.run.blocked_on)
         self.sys.engine.decide(
-            escalation.id, escalation.assignee, Decision.APPROVE,
+            escalation.id,
+            escalation.assignee,
+            Decision.APPROVE,
             note="logs are right, metrics window is too coarse",
         )
         self.sys.supervisor.advance(self.run)

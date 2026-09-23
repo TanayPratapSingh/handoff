@@ -16,16 +16,17 @@ class SupervisorCase(unittest.TestCase):
         return self.sys
 
     def open_checkout(self):
-        return self.sys.supervisor.open(Incident(
-            title="Checkout p99 latency spike",
-            service="checkout",
-            symptom="latency and errors after deploy",
-            severity=Severity.SEV2,
-        ))
+        return self.sys.supervisor.open(
+            Incident(
+                title="Checkout p99 latency spike",
+                service="checkout",
+                symptom="latency and errors after deploy",
+                severity=Severity.SEV2,
+            )
+        )
 
     def kinds(self):
         return [e.kind for e in self.sys.journal]
-
 
 
 class TestFanOut(SupervisorCase):
@@ -36,26 +37,20 @@ class TestFanOut(SupervisorCase):
 
     def test_every_diagnostic_capability_was_dispatched(self):
         routed = [
-            e.detail["capability"]
-            for e in self.sys.journal.of_kind(EventKind.SUBTASK_ROUTED)
+            e.detail["capability"] for e in self.sys.journal.of_kind(EventKind.SUBTASK_ROUTED)
         ]
         self.assertEqual(
             sorted(routed), ["logs", "metrics", "remediation", "replication", "runbook"]
         )
 
     def test_remediation_runs_after_the_analysts(self):
-        order = [
-            e.detail["capability"]
-            for e in self.sys.journal.of_kind(EventKind.SUBTASK_ROUTED)
-        ]
+        order = [e.detail["capability"] for e in self.sys.journal.of_kind(EventKind.SUBTASK_ROUTED)]
         self.assertEqual(order[-1], "remediation")
 
     def test_evidence_against_a_hypothesis_rejects_it(self):
         """Replication lag is 0.4s against a 5s threshold, so no failover."""
         self.assertIn("database_fault", self.run.aggregate.rejected())
-        self.assertNotIn(
-            "failover_database", [p.tool for p in self.run.queue]
-        )
+        self.assertNotIn("failover_database", [p.tool for p in self.run.queue])
 
     def test_workers_cannot_see_mutating_tools(self):
         readonly = self.sys.supervisor._readonly_tools()
@@ -111,7 +106,9 @@ class TestGuardedAutonomy(SupervisorCase):
     def test_a_modified_approval_runs_the_edited_arguments(self):
         escalation = self.sys.engine.get(self.run.blocked_on)
         self.sys.engine.decide(
-            escalation.id, escalation.assignee, Decision.MODIFY,
+            escalation.id,
+            escalation.assignee,
+            Decision.MODIFY,
             modified_args={"service": "checkout", "replicas": 9},
         )
         self.sys.supervisor.advance(self.run)
@@ -154,9 +151,7 @@ class TestAutonomyLevels(SupervisorCase):
         self.run = self.open_checkout()
         self.sys.supervisor.advance(self.run)
         self.assertEqual(self.run.executed, [])
-        self.assertTrue(
-            any(e.kind is EventKind.POLICY_BLOCKED for e in self.sys.journal)
-        )
+        self.assertTrue(any(e.kind is EventKind.POLICY_BLOCKED for e in self.sys.journal))
 
     def test_observe_still_produces_a_diagnosis(self):
         self.build_system(autonomy=Autonomy.OBSERVE)
@@ -182,9 +177,13 @@ class TestVerification(SupervisorCase):
     def test_a_healthy_service_needs_no_action(self):
         world = World.sample()
         self.build_system(world=world)
-        run = self.sys.supervisor.open(Incident(
-            title="Search feels slow", service="payments", symptom="latency",
-        ))
+        run = self.sys.supervisor.open(
+            Incident(
+                title="Search feels slow",
+                service="payments",
+                symptom="latency",
+            )
+        )
         self.sys.supervisor.advance(run)
         self.assertEqual(run.executed, [])
         self.assertEqual(run.state, RunState.RESOLVED)
@@ -199,9 +198,9 @@ class TestVerification(SupervisorCase):
         self.assertEqual(run.state, RunState.RESOLVED)
         self.assertTrue(any("verified" in n for n in run.notes))
         self.assertFalse(
-            self.sys.supervisor.tools.get("read_metrics").run(
-                self.world, {"service": "checkout"}
-            )["saturated"]
+            self.sys.supervisor.tools.get("read_metrics").run(self.world, {"service": "checkout"})[
+                "saturated"
+            ]
         )
 
 

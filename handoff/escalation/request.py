@@ -32,8 +32,7 @@ class EscalationState(StrEnum):
 
     @property
     def is_open(self) -> bool:
-        return self in (EscalationState.PENDING, EscalationState.ASSIGNED,
-                        EscalationState.HELD)
+        return self in (EscalationState.PENDING, EscalationState.ASSIGNED, EscalationState.HELD)
 
     @property
     def is_terminal(self) -> bool:
@@ -122,7 +121,7 @@ class Escalation:
         for the full budget of tiers one and two, so the remaining urgency
         is higher and the patience should be lower.
         """
-        seconds = max(30, int(self.deadline_seconds * (backoff ** self.tier_index)))
+        seconds = max(30, int(self.deadline_seconds * (backoff**self.tier_index)))
         return now + timedelta(seconds=seconds)
 
     def summary(self) -> str:

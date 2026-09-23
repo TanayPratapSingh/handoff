@@ -87,13 +87,15 @@ class EscalationEngine:
     # journal helper
 
     def _emit(self, kind: EventKind, esc: Escalation, actor: str = "system", **detail) -> Event:
-        return self.journal.append(Event(
-            kind=kind,
-            incident_id=esc.incident_id,
-            at=self.clock.now(),
-            actor=actor,
-            detail={"escalation_id": esc.id, "tool": esc.tool, **detail},
-        ))
+        return self.journal.append(
+            Event(
+                kind=kind,
+                incident_id=esc.incident_id,
+                at=self.clock.now(),
+                actor=actor,
+                detail={"escalation_id": esc.id, "tool": esc.tool, **detail},
+            )
+        )
 
     # raising
 
@@ -134,9 +136,13 @@ class EscalationEngine:
         )
         self._escalations[esc.id] = esc
         self._emit(
-            EventKind.ESCALATION_RAISED, esc,
-            risk=str(esc.risk), reason=reason, ladder=list(esc.ladder),
-            on_expiry=str(esc.on_expiry), quorum=esc.quorum,
+            EventKind.ESCALATION_RAISED,
+            esc,
+            risk=str(esc.risk),
+            reason=reason,
+            ladder=list(esc.ladder),
+            on_expiry=str(esc.on_expiry),
+            quorum=esc.quorum,
         )
         self._assign(esc)
         return esc
@@ -147,31 +153,44 @@ class EscalationEngine:
             tier = esc.current_tier
             already = set(esc.approvals)
             pool = [
-                r for r in self.roster.candidates(tier, esc.required_skill)
-                if r.id not in already
+                r for r in self.roster.candidates(tier, esc.required_skill) if r.id not in already
             ]
             deadline = esc.next_deadline(self.clock.now(), self.backoff)
             if not pool:
-                esc.attempts.append(Attempt(
-                    tier=tier, responder_id=None,
-                    assigned_at=self.clock.now(), deadline=deadline,
-                ))
+                esc.attempts.append(
+                    Attempt(
+                        tier=tier,
+                        responder_id=None,
+                        assigned_at=self.clock.now(),
+                        deadline=deadline,
+                    )
+                )
                 self._emit(
-                    EventKind.ESCALATION_REASSIGNED, esc,
-                    tier=tier, responder=None, why="no responder with capacity on this tier",
+                    EventKind.ESCALATION_REASSIGNED,
+                    esc,
+                    tier=tier,
+                    responder=None,
+                    why="no responder with capacity on this tier",
                 )
                 esc.tier_index += 1
                 continue
             chosen = pool[0]
             self.roster.acquire(chosen.id)
-            esc.attempts.append(Attempt(
-                tier=tier, responder_id=chosen.id,
-                assigned_at=self.clock.now(), deadline=deadline,
-            ))
+            esc.attempts.append(
+                Attempt(
+                    tier=tier,
+                    responder_id=chosen.id,
+                    assigned_at=self.clock.now(),
+                    deadline=deadline,
+                )
+            )
             esc.state = EscalationState.ASSIGNED
             self._emit(
-                EventKind.ESCALATION_ASSIGNED, esc,
-                tier=tier, responder=chosen.id, deadline=iso(deadline),
+                EventKind.ESCALATION_ASSIGNED,
+                esc,
+                tier=tier,
+                responder=chosen.id,
+                deadline=iso(deadline),
             )
             return esc
         return self._exhaust(esc)
@@ -184,8 +203,10 @@ class EscalationEngine:
             f"{', '.join(esc.tiers_tried()) or 'no tiers'}"
         )
         self._emit(
-            EventKind.ESCALATION_EXHAUSTED, esc,
-            tiers_tried=esc.tiers_tried(), attempts=len(esc.attempts),
+            EventKind.ESCALATION_EXHAUSTED,
+            esc,
+            tiers_tried=esc.tiers_tried(),
+            attempts=len(esc.attempts),
         )
         self._release(esc)
         return esc
@@ -220,8 +241,7 @@ class EscalationEngine:
         attempt = esc.attempts[-1]
         if attempt.responder_id != responder_id:
             raise ValueError(
-                f"escalation {esc.id} is assigned to {attempt.responder_id}, "
-                f"not {responder_id}"
+                f"escalation {esc.id} is assigned to {attempt.responder_id}, not {responder_id}"
             )
         attempt.answered = True
         attempt.decision = decision
@@ -229,8 +249,12 @@ class EscalationEngine:
         esc.state = EscalationState.ASSIGNED
 
         self._emit(
-            EventKind.ESCALATION_DECIDED, esc, actor=responder_id,
-            decision=str(decision), note=note, tier=attempt.tier,
+            EventKind.ESCALATION_DECIDED,
+            esc,
+            actor=responder_id,
+            decision=str(decision),
+            note=note,
+            tier=attempt.tier,
         )
 
         if decision is Decision.REJECT:
@@ -254,9 +278,8 @@ class EscalationEngine:
         if len(esc.approvals) >= esc.quorum:
             esc.state = EscalationState.APPROVED
             esc.resolved_at = self.clock.now()
-            esc.resolution_note = (
-                f"approved by {', '.join(esc.approvals)}"
-                + (" with edited arguments" if esc.modified_args is not None else "")
+            esc.resolution_note = f"approved by {', '.join(esc.approvals)}" + (
+                " with edited arguments" if esc.modified_args is not None else ""
             )
             self._release(esc)
             return esc
@@ -286,8 +309,10 @@ class EscalationEngine:
                 continue
             attempt = esc.attempts[-1]
             self._emit(
-                EventKind.ESCALATION_EXPIRED, esc,
-                tier=attempt.tier, responder=attempt.responder_id,
+                EventKind.ESCALATION_EXPIRED,
+                esc,
+                tier=attempt.tier,
+                responder=attempt.responder_id,
                 waited_seconds=int((now - attempt.assigned_at).total_seconds()),
                 on_expiry=str(esc.on_expiry),
             )
@@ -306,9 +331,7 @@ class EscalationEngine:
 
         if esc.on_expiry is OnExpiry.HOLD:
             esc.state = EscalationState.HELD
-            esc.resolution_note = (
-                "held: the incident is frozen until a human acts on this"
-            )
+            esc.resolution_note = "held: the incident is frozen until a human acts on this"
             self._emit(EventKind.INCIDENT_FROZEN, esc, why="escalation held on timeout")
             return esc
 
@@ -326,8 +349,10 @@ class EscalationEngine:
             esc.resolved_at = self.clock.now()
             esc.resolution_note = f"nobody answered, ran {esc.safe_fallback} instead"
             self._emit(
-                EventKind.ACTION_ALLOWED, esc,
-                substituted=esc.safe_fallback, why="safe fallback on timeout",
+                EventKind.ACTION_ALLOWED,
+                esc,
+                substituted=esc.safe_fallback,
+                why="safe fallback on timeout",
             )
             return esc
 
@@ -347,8 +372,6 @@ class EscalationEngine:
             args: dict[str, Any] = {}
             if self.registry is not None and esc.safe_fallback:
                 fallback = self.registry.get(esc.safe_fallback)
-                args = {
-                    f.name: esc.args[f.name] for f in fallback.fields if f.name in esc.args
-                }
+                args = {f.name: esc.args[f.name] for f in fallback.fields if f.name in esc.args}
             return Resolution(esc, True, esc.safe_fallback, args, esc.resolution_note)
         return Resolution(esc, False, None, {}, esc.resolution_note)

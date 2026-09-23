@@ -76,21 +76,26 @@ class Supervisor:
         return filtered
 
     def _emit(self, kind: EventKind, run: IncidentRun, **detail) -> Event:
-        return self.journal.append(Event(
-            kind=kind,
-            incident_id=run.incident.id,
-            at=self.clock.now(),
-            detail=detail,
-        ))
+        return self.journal.append(
+            Event(
+                kind=kind,
+                incident_id=run.incident.id,
+                at=self.clock.now(),
+                detail=detail,
+            )
+        )
 
     # the loop
 
     def open(self, incident: Incident) -> IncidentRun:
         run = IncidentRun(incident=incident)
         self._emit(
-            EventKind.INCIDENT_OPENED, run,
-            title=incident.title, service=incident.service,
-            severity=str(incident.severity), symptom=incident.symptom,
+            EventKind.INCIDENT_OPENED,
+            run,
+            title=incident.title,
+            service=incident.service,
+            severity=str(incident.severity),
+            symptom=incident.symptom,
         )
         return run
 
@@ -140,7 +145,8 @@ class Supervisor:
     def _do_plan(self, run: IncidentRun) -> None:
         run.subtasks = planner.plan(run.incident, self.ids)
         self._emit(
-            EventKind.PLAN_BUILT, run,
+            EventKind.PLAN_BUILT,
+            run,
             subtasks=len(run.subtasks),
             capabilities=[s.capability for s in run.subtasks],
         )
@@ -165,14 +171,20 @@ class Supervisor:
             worker = self.workers.for_capability(subtask.capability)
         except UnknownWorkerError as exc:
             self._emit(
-                EventKind.SUBTASK_FAILED, run,
-                subtask=subtask.id, capability=subtask.capability, error=str(exc),
+                EventKind.SUBTASK_FAILED,
+                run,
+                subtask=subtask.id,
+                capability=subtask.capability,
+                error=str(exc),
             )
             return WorkerResult.failed(subtask.id, f"<{subtask.capability}>", str(exc))
 
         self._emit(
-            EventKind.SUBTASK_ROUTED, run,
-            subtask=subtask.id, capability=subtask.capability, worker=worker.name,
+            EventKind.SUBTASK_ROUTED,
+            run,
+            subtask=subtask.id,
+            capability=subtask.capability,
+            worker=worker.name,
         )
         if subtask.capability == "remediation":
             interim = aggregate([r for r in run.results if r.ok])
@@ -183,15 +195,22 @@ class Supervisor:
             result = worker.handle(subtask, ctx)
         except Exception as exc:  # a worker crash degrades the run, it does not end it
             self._emit(
-                EventKind.SUBTASK_FAILED, run,
-                subtask=subtask.id, worker=worker.name, error=repr(exc),
+                EventKind.SUBTASK_FAILED,
+                run,
+                subtask=subtask.id,
+                worker=worker.name,
+                error=repr(exc),
             )
             return WorkerResult.failed(subtask.id, worker.name, repr(exc))
 
         kind = EventKind.SUBTASK_FINISHED if result.ok else EventKind.SUBTASK_FAILED
         self._emit(
-            kind, run, subtask=subtask.id, worker=worker.name,
-            findings=len(result.findings), proposals=len(result.proposals),
+            kind,
+            run,
+            subtask=subtask.id,
+            worker=worker.name,
+            findings=len(result.findings),
+            proposals=len(result.proposals),
             error=result.error,
         )
         return result
@@ -199,16 +218,19 @@ class Supervisor:
     def _do_aggregate(self, run: IncidentRun) -> None:
         run.aggregate = aggregate(run.results)
         self._emit(
-            EventKind.FINDINGS_MERGED, run,
+            EventKind.FINDINGS_MERGED,
+            run,
             findings=len(run.aggregate.findings),
             confirmed=run.aggregate.confirmed(self.confidence_threshold),
             failures=len(run.aggregate.failures),
         )
         for view in run.aggregate.contested():
             self._emit(
-                EventKind.CONFLICT_DETECTED, run,
+                EventKind.CONFLICT_DETECTED,
+                run,
                 hypothesis=view.name,
-                supporters=list(view.supporters), detractors=list(view.detractors),
+                supporters=list(view.supporters),
+                detractors=list(view.detractors),
             )
             run.note(f"contested diagnosis: {view.describe()}")
         run.state = RunState.DECIDING
@@ -250,9 +272,13 @@ class Supervisor:
         risk = self.effective_risk(proposal, run)
 
         self._emit(
-            EventKind.ACTION_PROPOSED, run,
-            tool=proposal.tool, args=proposal.args, reason=proposal.reason,
-            declared_risk=str(tool.risk), effective_risk=str(risk),
+            EventKind.ACTION_PROPOSED,
+            run,
+            tool=proposal.tool,
+            args=proposal.args,
+            reason=proposal.reason,
+            declared_risk=str(tool.risk),
+            effective_risk=str(risk),
         )
 
         if self.engine.policy.forbids(risk):
@@ -323,21 +349,37 @@ class Supervisor:
             validated = tool.validate(args)
             result = tool.run(self.world, validated)
         except Exception as exc:
-            run.executed.append(ExecutedAction(
-                tool=tool_name, args=args, result=None, at=self.clock.now(),
-                ok=False, error=repr(exc),
-                approved_by=approved_by, substituted_for=substituted_for,
-            ))
+            run.executed.append(
+                ExecutedAction(
+                    tool=tool_name,
+                    args=args,
+                    result=None,
+                    at=self.clock.now(),
+                    ok=False,
+                    error=repr(exc),
+                    approved_by=approved_by,
+                    substituted_for=substituted_for,
+                )
+            )
             self._emit(EventKind.ACTION_FAILED, run, tool=tool_name, error=repr(exc))
             run.state = RunState.ACTING if run.queue else RunState.VERIFYING
             return
-        run.executed.append(ExecutedAction(
-            tool=tool_name, args=validated, result=result, at=self.clock.now(),
-            approved_by=approved_by, substituted_for=substituted_for,
-        ))
+        run.executed.append(
+            ExecutedAction(
+                tool=tool_name,
+                args=validated,
+                result=result,
+                at=self.clock.now(),
+                approved_by=approved_by,
+                substituted_for=substituted_for,
+            )
+        )
         self._emit(
-            EventKind.ACTION_EXECUTED, run,
-            tool=tool_name, args=validated, approved_by=approved_by,
+            EventKind.ACTION_EXECUTED,
+            run,
+            tool=tool_name,
+            args=validated,
+            approved_by=approved_by,
             substituted_for=substituted_for,
         )
         run.state = RunState.VERIFYING

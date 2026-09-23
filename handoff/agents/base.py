@@ -101,5 +101,4 @@ class Worker(Protocol):
     name: str
     capabilities: frozenset[str]
 
-    def handle(self, subtask: Subtask, ctx: WorkerContext) -> WorkerResult:
-        ...
+    def handle(self, subtask: Subtask, ctx: WorkerContext) -> WorkerResult: ...

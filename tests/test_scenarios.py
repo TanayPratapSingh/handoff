@@ -23,10 +23,7 @@ class TestScenarioSuite(unittest.TestCase):
         self.assertGreaterEqual(len(self.report.results), 10)
 
     def test_every_scenario_passes(self):
-        failed = [
-            f"{r.name}: {'; '.join(r.failures)}"
-            for r in self.report.results if not r.passed
-        ]
+        failed = [f"{r.name}: {'; '.join(r.failures)}" for r in self.report.results if not r.passed]
         self.assertEqual(failed, [], "\n".join(failed))
 
     def test_the_report_serialises(self):
@@ -42,18 +39,26 @@ class TestScenarioHygiene(unittest.TestCase):
     def test_every_scenario_explains_itself(self):
         for scenario in self.scenarios:
             self.assertGreater(
-                len(scenario.why_this_case_exists.split()), 8,
+                len(scenario.why_this_case_exists.split()),
+                8,
                 f"{scenario.name} has a rationale too short to be one",
             )
 
     def test_every_scenario_asserts_something(self):
         for scenario in self.scenarios:
             expect = scenario.expect
-            asserted = any([
-                expect.end_state, expect.executed, expect.not_executed,
-                expect.escalated, expect.substituted, expect.confirmed,
-                expect.contested, expect.rejected,
-            ])
+            asserted = any(
+                [
+                    expect.end_state,
+                    expect.executed,
+                    expect.not_executed,
+                    expect.escalated,
+                    expect.substituted,
+                    expect.confirmed,
+                    expect.contested,
+                    expect.rejected,
+                ]
+            )
             self.assertTrue(asserted, f"{scenario.name} asserts nothing")
 
     def test_names_are_unique(self):

@@ -30,18 +30,30 @@ class RunbookRetriever:
         symptom = subtask.args.get("symptom", "")
         out = ctx.call("search_runbooks", symptom=symptom)
         if out["runbook"] is None:
-            return WorkerResult(subtask.id, self.name, findings=[Finding(
-                source=self.name,
-                claim=f"no runbook matches {symptom!r}",
-                confidence=0.99,
-                evidence=out,
-            )])
-        return WorkerResult(subtask.id, self.name, findings=[Finding(
-            source=self.name,
-            claim=f"runbook {out['runbook']} applies: {out['title']}",
-            confidence=0.85,
-            evidence=out,
-        )])
+            return WorkerResult(
+                subtask.id,
+                self.name,
+                findings=[
+                    Finding(
+                        source=self.name,
+                        claim=f"no runbook matches {symptom!r}",
+                        confidence=0.99,
+                        evidence=out,
+                    )
+                ],
+            )
+        return WorkerResult(
+            subtask.id,
+            self.name,
+            findings=[
+                Finding(
+                    source=self.name,
+                    claim=f"runbook {out['runbook']} applies: {out['title']}",
+                    confidence=0.85,
+                    evidence=out,
+                )
+            ],
+        )
 
 
 class RemediationPlanner:
@@ -55,55 +67,65 @@ class RemediationPlanner:
 
         if "capacity_shortfall" in hypotheses and service:
             current = ctx.call("read_metrics", service=service)["replicas"]
-            proposals.append(ProposedAction(
-                tool="scale_deployment",
-                args={"service": service, "replicas": min(current * 2, 200)},
-                reason=f"{service} is saturated at {current} replicas",
-                proposed_by=self.name,
-                addresses="capacity_shortfall",
-            ))
+            proposals.append(
+                ProposedAction(
+                    tool="scale_deployment",
+                    args={"service": service, "replicas": min(current * 2, 200)},
+                    reason=f"{service} is saturated at {current} replicas",
+                    proposed_by=self.name,
+                    addresses="capacity_shortfall",
+                )
+            )
 
         if "service_degraded" in hypotheses and service:
-            proposals.append(ProposedAction(
-                tool="restart_service",
-                args={"service": service},
-                reason=f"{service} is degraded and a roll restart is reversible",
-                proposed_by=self.name,
-                addresses="service_degraded",
-            ))
+            proposals.append(
+                ProposedAction(
+                    tool="restart_service",
+                    args={"service": service},
+                    reason=f"{service} is degraded and a roll restart is reversible",
+                    proposed_by=self.name,
+                    addresses="service_degraded",
+                )
+            )
 
         if "database_fault" in hypotheses:
             replication = ctx.call("read_replication")
             target = replication["replicas"][0] if replication["replicas"] else None
             if target:
-                proposals.append(ProposedAction(
-                    tool="failover_database",
-                    args={"target": target},
-                    reason=(
-                        f"replication lag {replication['replication_lag_s']}s on "
-                        f"{replication['primary']}"
-                    ),
-                    proposed_by=self.name,
-                    addresses="database_fault",
-                ))
+                proposals.append(
+                    ProposedAction(
+                        tool="failover_database",
+                        args={"target": target},
+                        reason=(
+                            f"replication lag {replication['replication_lag_s']}s on "
+                            f"{replication['primary']}"
+                        ),
+                        proposed_by=self.name,
+                        addresses="database_fault",
+                    )
+                )
 
         if "upstream_fault" in hypotheses:
-            proposals.append(ProposedAction(
-                tool="page_vendor",
-                args={"vendor": "payments-upstream"},
-                reason="the dominant error names an upstream dependency",
-                proposed_by=self.name,
-                addresses="upstream_fault",
-            ))
+            proposals.append(
+                ProposedAction(
+                    tool="page_vendor",
+                    args={"vendor": "payments-upstream"},
+                    reason="the dominant error names an upstream dependency",
+                    proposed_by=self.name,
+                    addresses="upstream_fault",
+                )
+            )
 
         proposals.sort(key=lambda p: _RISK_ORDER.get(p.tool, 99))
 
-        findings = [Finding(
-            source=self.name,
-            claim=f"{len(proposals)} remediation options for {sorted(hypotheses)}",
-            confidence=0.7,
-            evidence={"hypotheses": sorted(hypotheses)},
-        )]
+        findings = [
+            Finding(
+                source=self.name,
+                claim=f"{len(proposals)} remediation options for {sorted(hypotheses)}",
+                confidence=0.7,
+                evidence={"hypotheses": sorted(hypotheses)},
+            )
+        ]
         return WorkerResult(subtask.id, self.name, findings=findings, proposals=proposals)
 
 

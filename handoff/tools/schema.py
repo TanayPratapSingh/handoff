@@ -36,9 +36,7 @@ class Field:
         # a bool is never accepted as a number, and a number is never
         # accepted as a bool.
         if isinstance(value, bool) and self.type is not bool:
-            raise ValidationError(
-                tool, self.name, f"expected {self.type.__name__}, got bool"
-            )
+            raise ValidationError(tool, self.name, f"expected {self.type.__name__}, got bool")
         if self.type is bool and not isinstance(value, bool):
             raise ValidationError(tool, self.name, f"expected bool, got {type(value).__name__}")
         if self.type is float and isinstance(value, int):
@@ -48,9 +46,7 @@ class Field:
                 tool, self.name, f"expected {self.type.__name__}, got {type(value).__name__}"
             )
         if self.choices is not None and value not in self.choices:
-            raise ValidationError(
-                tool, self.name, f"{value!r} not in {list(self.choices)}"
-            )
+            raise ValidationError(tool, self.name, f"{value!r} not in {list(self.choices)}")
         if self.minimum is not None and value < self.minimum:
             raise ValidationError(tool, self.name, f"{value} is below minimum {self.minimum}")
         if self.maximum is not None and value > self.maximum:

@@ -9,8 +9,9 @@ def result(worker, *findings, ok=True, error=""):
 
 
 def finding(source, supports=(), contradicts=(), confidence=0.9):
-    return Finding(source=source, claim="x", confidence=confidence,
-                   supports=supports, contradicts=contradicts)
+    return Finding(
+        source=source, claim="x", confidence=confidence, supports=supports, contradicts=contradicts
+    )
 
 
 class TestFindingValidation(unittest.TestCase):
@@ -27,10 +28,12 @@ class TestFindingValidation(unittest.TestCase):
 
 class TestAggregation(unittest.TestCase):
     def test_support_accumulates_across_workers(self):
-        agg = aggregate([
-            result("a", finding("a", supports=("h",), confidence=0.5)),
-            result("b", finding("b", supports=("h",), confidence=0.4)),
-        ])
+        agg = aggregate(
+            [
+                result("a", finding("a", supports=("h",), confidence=0.5)),
+                result("b", finding("b", supports=("h",), confidence=0.4)),
+            ]
+        )
         self.assertAlmostEqual(agg.hypotheses["h"].support, 0.9)
         self.assertEqual(agg.hypotheses["h"].supporters, ("a", "b"))
 
@@ -50,18 +53,22 @@ class TestAggregation(unittest.TestCase):
 
 class TestContest(unittest.TestCase):
     def test_two_confident_opposites_are_contested(self):
-        agg = aggregate([
-            result("a", finding("a", supports=("h",), confidence=0.9)),
-            result("b", finding("b", contradicts=("h",), confidence=0.8)),
-        ])
+        agg = aggregate(
+            [
+                result("a", finding("a", supports=("h",), confidence=0.9)),
+                result("b", finding("b", contradicts=("h",), confidence=0.8)),
+            ]
+        )
         self.assertTrue(agg.hypotheses["h"].contested)
         self.assertEqual([v.name for v in agg.contested()], ["h"])
 
     def test_a_contested_hypothesis_is_never_confirmed(self):
-        agg = aggregate([
-            result("a", finding("a", supports=("h",), confidence=0.95)),
-            result("b", finding("b", contradicts=("h",), confidence=0.1)),
-        ])
+        agg = aggregate(
+            [
+                result("a", finding("a", supports=("h",), confidence=0.95)),
+                result("b", finding("b", contradicts=("h",), confidence=0.1)),
+            ]
+        )
         self.assertEqual(agg.confirmed(0.6), [])
 
     def test_contest_is_about_voices_not_net_score(self):
@@ -69,20 +76,24 @@ class TestContest(unittest.TestCase):
         quiet = aggregate([result("a", finding("a", supports=("h",), confidence=0.05))])
         self.assertFalse(quiet.hypotheses["h"].contested)
 
-        loud = aggregate([
-            result("a", finding("a", supports=("h",), confidence=0.9)),
-            result("b", finding("b", contradicts=("h",), confidence=0.85)),
-        ])
+        loud = aggregate(
+            [
+                result("a", finding("a", supports=("h",), confidence=0.9)),
+                result("b", finding("b", contradicts=("h",), confidence=0.85)),
+            ]
+        )
         self.assertTrue(loud.hypotheses["h"].contested)
         self.assertAlmostEqual(loud.hypotheses["h"].net, 0.05, places=4)
 
 
 class TestDegraded(unittest.TestCase):
     def test_a_failed_worker_marks_the_aggregate_degraded(self):
-        agg = aggregate([
-            result("a", finding("a", supports=("h",))),
-            result("b", ok=False, error="timeout"),
-        ])
+        agg = aggregate(
+            [
+                result("a", finding("a", supports=("h",))),
+                result("b", ok=False, error="timeout"),
+            ]
+        )
         self.assertTrue(agg.degraded)
         self.assertEqual(len(agg.failures), 1)
         self.assertIn("timeout", agg.summary())

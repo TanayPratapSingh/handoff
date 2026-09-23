@@ -84,6 +84,11 @@ def build(
         ids=IdGenerator(seed),
     )
     return System(
-        supervisor=supervisor, engine=engine, journal=journal,
-        roster=roster, policy=policy, world=world, clock=clock,
+        supervisor=supervisor,
+        engine=engine,
+        journal=journal,
+        roster=roster,
+        policy=policy,
+        world=world,
+        clock=clock,
     )

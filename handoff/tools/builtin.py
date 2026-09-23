@@ -58,12 +58,21 @@ def _read_replication(world: World, args: dict[str, Any]) -> dict[str, Any]:
 def _search_runbooks(world: World, args: dict[str, Any]) -> dict[str, Any]:
     symptom = args["symptom"].lower()
     library = {
-        "latency": ("RB-014", "Elevated p99 on a stateless service",
-                    ["check replica count", "check upstream saturation", "scale out"]),
-        "errors": ("RB-002", "Error rate spike after release",
-                   ["compare to previous version", "roll back", "verify"]),
-        "replication": ("RB-031", "Replication lag on the orders database",
-                        ["confirm lag trend", "consider read only mode", "failover last"]),
+        "latency": (
+            "RB-014",
+            "Elevated p99 on a stateless service",
+            ["check replica count", "check upstream saturation", "scale out"],
+        ),
+        "errors": (
+            "RB-002",
+            "Error rate spike after release",
+            ["compare to previous version", "roll back", "verify"],
+        ),
+        "replication": (
+            "RB-031",
+            "Replication lag on the orders database",
+            ["confirm lag trend", "consider read only mode", "failover last"],
+        ),
     }
     for key, (rid, title, steps) in library.items():
         if key in symptom:
@@ -72,38 +81,48 @@ def _search_runbooks(world: World, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def register_readonly(registry: ToolRegistry) -> ToolRegistry:
-    registry.register(Tool(
-        name="read_logs",
-        description="Read recent error logs for a service",
-        risk=Risk.READ_ONLY,
-        fields=(SERVICE, Field("window_minutes", int, required=False, default=15,
-                               minimum=1, maximum=1440)),
-        run=_read_logs,
-        blast_radius="none, reads only",
-    ))
-    registry.register(Tool(
-        name="read_metrics",
-        description="Read error rate, latency and replica count for a service",
-        risk=Risk.READ_ONLY,
-        fields=(SERVICE,),
-        run=_read_metrics,
-        blast_radius="none, reads only",
-    ))
-    registry.register(Tool(
-        name="read_replication",
-        description="Read replication topology and lag for the orders database",
-        risk=Risk.READ_ONLY,
-        run=_read_replication,
-        blast_radius="none, reads only",
-    ))
-    registry.register(Tool(
-        name="search_runbooks",
-        description="Find the runbook matching a symptom",
-        risk=Risk.READ_ONLY,
-        fields=(Field("symptom", str),),
-        run=_search_runbooks,
-        blast_radius="none, reads only",
-    ))
+    registry.register(
+        Tool(
+            name="read_logs",
+            description="Read recent error logs for a service",
+            risk=Risk.READ_ONLY,
+            fields=(
+                SERVICE,
+                Field("window_minutes", int, required=False, default=15, minimum=1, maximum=1440),
+            ),
+            run=_read_logs,
+            blast_radius="none, reads only",
+        )
+    )
+    registry.register(
+        Tool(
+            name="read_metrics",
+            description="Read error rate, latency and replica count for a service",
+            risk=Risk.READ_ONLY,
+            fields=(SERVICE,),
+            run=_read_metrics,
+            blast_radius="none, reads only",
+        )
+    )
+    registry.register(
+        Tool(
+            name="read_replication",
+            description="Read replication topology and lag for the orders database",
+            risk=Risk.READ_ONLY,
+            run=_read_replication,
+            blast_radius="none, reads only",
+        )
+    )
+    registry.register(
+        Tool(
+            name="search_runbooks",
+            description="Find the runbook matching a symptom",
+            risk=Risk.READ_ONLY,
+            fields=(Field("symptom", str),),
+            run=_search_runbooks,
+            blast_radius="none, reads only",
+        )
+    )
     return registry
 
 
@@ -162,61 +181,75 @@ def _page_vendor(world: World, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def register_mutating(registry: ToolRegistry) -> ToolRegistry:
-    registry.register(Tool(
-        name="restart_service",
-        description="Roll restart every pod of a service",
-        risk=Risk.LOW,
-        fields=(SERVICE,),
-        run=_restart_service,
-        blast_radius="one service, brief connection resets during the roll",
-    ))
-    registry.register(Tool(
-        name="purge_cache",
-        description="Purge a cache namespace",
-        risk=Risk.LOW,
-        fields=(Field("namespace", str),),
-        run=_purge_cache,
-        blast_radius="cold cache and a latency spike until it refills",
-    ))
-    registry.register(Tool(
-        name="page_vendor",
-        description="Page an upstream vendor on call",
-        risk=Risk.LOW,
-        fields=(Field("vendor", str),),
-        run=_page_vendor,
-        blast_radius="none technically, wakes somebody at another company",
-    ))
-    registry.register(Tool(
-        name="scale_deployment",
-        description="Change the replica count of a service",
-        risk=Risk.MEDIUM,
-        fields=(SERVICE, Field("replicas", int, minimum=0, maximum=200)),
-        run=_scale_deployment,
-        blast_radius="cluster capacity and cost, scaling to zero takes the service down",
-    ))
-    registry.register(Tool(
-        name="rollback_release",
-        description="Roll a service back to its previous version",
-        risk=Risk.MEDIUM,
-        fields=(SERVICE,),
-        run=_rollback_release,
-        blast_radius="one service reverts, in flight schema assumptions may break",
-    ))
-    registry.register(Tool(
-        name="drain_node",
-        description="Cordon and drain a node",
-        risk=Risk.MEDIUM,
-        fields=(Field("node", str),),
-        run=_drain_node,
-        blast_radius="workloads reschedule, capacity drops until replaced",
-    ))
-    registry.register(Tool(
-        name="enable_read_only",
-        description="Put the orders database into read only mode",
-        risk=Risk.MEDIUM,
-        run=_enable_read_only,
-        blast_radius="writes rejected, checkout degrades but data is safe",
-    ))
+    registry.register(
+        Tool(
+            name="restart_service",
+            description="Roll restart every pod of a service",
+            risk=Risk.LOW,
+            fields=(SERVICE,),
+            run=_restart_service,
+            blast_radius="one service, brief connection resets during the roll",
+        )
+    )
+    registry.register(
+        Tool(
+            name="purge_cache",
+            description="Purge a cache namespace",
+            risk=Risk.LOW,
+            fields=(Field("namespace", str),),
+            run=_purge_cache,
+            blast_radius="cold cache and a latency spike until it refills",
+        )
+    )
+    registry.register(
+        Tool(
+            name="page_vendor",
+            description="Page an upstream vendor on call",
+            risk=Risk.LOW,
+            fields=(Field("vendor", str),),
+            run=_page_vendor,
+            blast_radius="none technically, wakes somebody at another company",
+        )
+    )
+    registry.register(
+        Tool(
+            name="scale_deployment",
+            description="Change the replica count of a service",
+            risk=Risk.MEDIUM,
+            fields=(SERVICE, Field("replicas", int, minimum=0, maximum=200)),
+            run=_scale_deployment,
+            blast_radius="cluster capacity and cost, scaling to zero takes the service down",
+        )
+    )
+    registry.register(
+        Tool(
+            name="rollback_release",
+            description="Roll a service back to its previous version",
+            risk=Risk.MEDIUM,
+            fields=(SERVICE,),
+            run=_rollback_release,
+            blast_radius="one service reverts, in flight schema assumptions may break",
+        )
+    )
+    registry.register(
+        Tool(
+            name="drain_node",
+            description="Cordon and drain a node",
+            risk=Risk.MEDIUM,
+            fields=(Field("node", str),),
+            run=_drain_node,
+            blast_radius="workloads reschedule, capacity drops until replaced",
+        )
+    )
+    registry.register(
+        Tool(
+            name="enable_read_only",
+            description="Put the orders database into read only mode",
+            risk=Risk.MEDIUM,
+            run=_enable_read_only,
+            blast_radius="writes rejected, checkout degrades but data is safe",
+        )
+    )
     return registry
 
 
@@ -257,44 +290,52 @@ def _delete_volume(world: World, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def register_destructive(registry: ToolRegistry) -> ToolRegistry:
-    registry.register(Tool(
-        name="snapshot_volume",
-        description="Take a point in time snapshot of a volume",
-        risk=Risk.LOW,
-        fields=(Field("volume", str),),
-        run=_snapshot_volume,
-        blast_radius="storage cost and some io while it runs",
-    ))
-    registry.register(Tool(
-        name="failover_database",
-        description="Promote a replica to primary",
-        risk=Risk.HIGH,
-        fields=(Field("target", str, description="replica to promote"),),
-        run=_failover_database,
-        reversible=False,
-        blast_radius="every writer reconnects, in flight transactions are lost",
-        safe_fallback="enable_read_only",
-    ))
-    registry.register(Tool(
-        name="force_terminate",
-        description="Terminate every pod of a service without draining",
-        risk=Risk.HIGH,
-        fields=(SERVICE,),
-        run=_force_terminate,
-        reversible=False,
-        blast_radius="service goes to zero, in flight requests dropped",
-        safe_fallback="restart_service",
-    ))
-    registry.register(Tool(
-        name="delete_volume",
-        description="Permanently delete a persistent volume",
-        risk=Risk.CRITICAL,
-        fields=(Field("volume", str),),
-        run=_delete_volume,
-        reversible=False,
-        blast_radius="data is gone unless a snapshot exists, no undo",
-        safe_fallback="snapshot_volume",
-    ))
+    registry.register(
+        Tool(
+            name="snapshot_volume",
+            description="Take a point in time snapshot of a volume",
+            risk=Risk.LOW,
+            fields=(Field("volume", str),),
+            run=_snapshot_volume,
+            blast_radius="storage cost and some io while it runs",
+        )
+    )
+    registry.register(
+        Tool(
+            name="failover_database",
+            description="Promote a replica to primary",
+            risk=Risk.HIGH,
+            fields=(Field("target", str, description="replica to promote"),),
+            run=_failover_database,
+            reversible=False,
+            blast_radius="every writer reconnects, in flight transactions are lost",
+            safe_fallback="enable_read_only",
+        )
+    )
+    registry.register(
+        Tool(
+            name="force_terminate",
+            description="Terminate every pod of a service without draining",
+            risk=Risk.HIGH,
+            fields=(SERVICE,),
+            run=_force_terminate,
+            reversible=False,
+            blast_radius="service goes to zero, in flight requests dropped",
+            safe_fallback="restart_service",
+        )
+    )
+    registry.register(
+        Tool(
+            name="delete_volume",
+            description="Permanently delete a persistent volume",
+            risk=Risk.CRITICAL,
+            fields=(Field("volume", str),),
+            run=_delete_volume,
+            reversible=False,
+            blast_radius="data is gone unless a snapshot exists, no undo",
+            safe_fallback="snapshot_volume",
+        )
+    )
     return registry
 
 
@@ -305,5 +346,5 @@ def build_registry() -> ToolRegistry:
     register_destructive(registry)
     problems = registry.check_fallbacks()
     if problems:
-        raise ValueError('broken safe_fallback declarations: ' + '; '.join(problems))
+        raise ValueError("broken safe_fallback declarations: " + "; ".join(problems))
     return registry

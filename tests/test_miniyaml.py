@@ -15,7 +15,7 @@ class TestScalars(unittest.TestCase):
         self.assertEqual(doc["s"], "plain words")
 
     def test_quotes_preserve_literal(self):
-        doc = loads('a: "true"\nb: \'3\'')
+        doc = loads("a: \"true\"\nb: '3'")
         self.assertEqual(doc["a"], "true")
         self.assertEqual(doc["b"], "3")
 

@@ -69,10 +69,7 @@ class Roster:
         Sorted by current load so that an even spread is the default and
         the ordering is deterministic.
         """
-        pool = [
-            r for r in self.on_tier(tier)
-            if r.has_capacity and r.can_approve(skill)
-        ]
+        pool = [r for r in self.on_tier(tier) if r.has_capacity and r.can_approve(skill)]
         return sorted(pool, key=lambda r: (r.open_count, r.id))
 
     def acquire(self, responder_id: str) -> Responder:
@@ -103,14 +100,16 @@ class Roster:
             missing = [k for k in ("id", "name", "tier") if k not in entry]
             if missing:
                 raise ConfigError(f"{path}: responder missing {missing}: {entry}")
-            roster.add(Responder(
-                id=entry["id"],
-                name=entry["name"],
-                tier=entry["tier"],
-                skills=frozenset(entry.get("skills") or ()),
-                available=entry.get("available", True),
-                max_concurrent=entry.get("max_concurrent", 2),
-            ))
+            roster.add(
+                Responder(
+                    id=entry["id"],
+                    name=entry["name"],
+                    tier=entry["tier"],
+                    skills=frozenset(entry.get("skills") or ()),
+                    available=entry.get("available", True),
+                    max_concurrent=entry.get("max_concurrent", 2),
+                )
+            )
         empty = [t for t in tiers if not roster.on_tier(t)]
         if empty:
             raise ConfigError(f"{path}: tiers with no responders: {empty}")

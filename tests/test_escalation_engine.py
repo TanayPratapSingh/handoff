@@ -242,13 +242,15 @@ class TestDeadlineSafeFallback(EngineCase):
         fallback. It is reachable for a reversible high risk tool, so the
         test registers one rather than pretending the branch is dead.
         """
-        naked = self.registry.register(Tool(
-            name="quarantine_host",
-            description="Isolate a host from the network",
-            risk=Risk.HIGH,
-            blast_radius="host drops off the network entirely",
-            safe_fallback=None,
-        ))
+        naked = self.registry.register(
+            Tool(
+                name="quarantine_host",
+                description="Isolate a host from the network",
+                risk=Risk.HIGH,
+                blast_radius="host drops off the network entirely",
+                safe_fallback=None,
+            )
+        )
         esc = self.engine.raise_for("inc_1", naked, {}, "suspected compromise")
         self.clock.advance(seconds=180)
         self.engine.tick()
@@ -403,8 +405,7 @@ class TestNoResponderAvailable(EngineCase):
 
     def test_a_skill_gap_skips_the_tier(self):
         self.build(
-            Rule(Risk.HIGH, True, ("t1", "t2"), 300, OnExpiry.ESCALATE,
-                 required_skill="database"),
+            Rule(Risk.HIGH, True, ("t1", "t2"), 300, OnExpiry.ESCALATE, required_skill="database"),
             responders=[
                 Responder("one", "One", "t1", frozenset({"application"})),
                 Responder("two", "Two", "t2", frozenset({"database"})),

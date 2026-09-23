@@ -75,6 +75,7 @@ class TestRosterConfig(unittest.TestCase):
 
     def test_shipped_roster_covers_every_tier_in_the_shipped_policy(self):
         from handoff.escalation.policy import Policy
+
         roster = Roster.from_config("config/roster.yaml")
         policy = Policy.from_config("config/policy.yaml")
         for rule in policy.rules.values():

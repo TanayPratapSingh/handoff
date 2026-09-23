@@ -105,9 +105,7 @@ def _scan(text: str) -> list[_Line]:
             continue
         for token in _REJECTED:
             if content.startswith(token):
-                raise ConfigError(
-                    f"line {number}: {token!r} is outside the supported YAML subset"
-                )
+                raise ConfigError(f"line {number}: {token!r} is outside the supported YAML subset")
         indent = len(raw) - len(raw.lstrip(" "))
 
         marker = _block_marker(stripped)

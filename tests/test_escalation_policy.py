@@ -120,6 +120,7 @@ class TestNeedsHuman(unittest.TestCase):
 
     def test_raising_the_threshold_widens_autonomy(self):
         from dataclasses import replace
+
         p = replace(self.policy, escalate_at_or_above=Risk.HIGH)
         self.assertFalse(p.needs_human(Risk.MEDIUM))
         self.assertTrue(p.needs_human(Risk.HIGH))

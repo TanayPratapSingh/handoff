@@ -51,8 +51,9 @@ class World:
     def sample(cls) -> World:
         return cls(
             services={
-                "checkout": Service("checkout", replicas=6, error_rate=0.21,
-                                    latency_p99_ms=2400, healthy=False),
+                "checkout": Service(
+                    "checkout", replicas=6, error_rate=0.21, latency_p99_ms=2400, healthy=False
+                ),
                 "payments": Service("payments", replicas=4),
                 "search": Service("search", replicas=2, latency_p99_ms=310),
             }
