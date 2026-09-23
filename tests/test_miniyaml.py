@@ -111,3 +111,31 @@ class TestBlockScalars(unittest.TestCase):
         doc = loads("outer:\n  inner: >\n    folded text\n  other: 2")
         self.assertEqual(doc["outer"]["inner"], "folded text")
         self.assertEqual(doc["outer"]["other"], 2)
+
+
+class TestNestingInsideListItems(unittest.TestCase):
+    def test_a_nested_map_inside_a_list_item_keeps_its_shape(self):
+        """Continuation lines keep their own indentation.
+
+        Rewriting every continuation line to one synthetic level flattens
+        nested maps, which silently emptied modified_args in the scenario
+        files and produced an approval with no edits rather than an error.
+        """
+        doc = loads(
+            "decisions:\n"
+            "  - decision: modify\n"
+            "    args:\n"
+            "      service: checkout\n"
+            "      replicas: 9\n"
+            "  - decision: approve\n"
+        )
+        self.assertEqual(doc["decisions"][0]["args"], {"service": "checkout", "replicas": 9})
+        self.assertEqual(doc["decisions"][1], {"decision": "approve"})
+
+    def test_a_nested_list_inside_a_list_item(self):
+        doc = loads("outer:\n  - name: a\n    tags:\n      - x\n      - y\n")
+        self.assertEqual(doc["outer"][0]["tags"], ["x", "y"])
+
+    def test_a_block_scalar_inside_a_list_item(self):
+        doc = loads("outer:\n  - name: a\n    why: >\n      folded reason\n")
+        self.assertEqual(doc["outer"][0]["why"], "folded reason")

@@ -214,12 +214,18 @@ def _parse_list(lines: list[_Line], pos: int, indent: int) -> tuple[list[Any], i
             else:
                 out.append(None)
             continue
-        if ":" in item and not (item[0] in "\"'"):
-            child_indent = indent + 2
-            block = [_Line(child_indent, item, line.number)]
+        if ":" in item and item[0] not in "\"'":
+            # "- key: value" starts a map whose remaining keys are indented
+            # to the column of that first key. Continuation lines keep
+            # their own indentation: rewriting them all to one level would
+            # flatten any nested map inside the item, which is how
+            # modified_args under a decision entry loses its contents.
+            block_lines: list[_Line] = []
             while pos < len(lines) and lines[pos].indent > indent:
-                block.append(_Line(child_indent, lines[pos].text, lines[pos].number))
+                block_lines.append(lines[pos])
                 pos += 1
+            child_indent = block_lines[0].indent if block_lines else indent + 2
+            block = [_Line(child_indent, item, line.number, line.value), *block_lines]
             value, _ = _parse_map(block, 0, child_indent)
             out.append(value)
         else:
