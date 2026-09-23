@@ -103,14 +103,25 @@ class EscalationEngine:
         tool: Tool,
         args: dict[str, Any],
         reason: str,
+        risk: Risk | None = None,
     ) -> Escalation:
-        rule = self.policy.rule_for(tool.risk)
+        """Raise an escalation for a proposed action.
+
+        risk overrides the tool's declared level. The supervisor raises the
+        effective risk of an action whose diagnosis is contested, and that
+        raised level has to pick the rule too. Deciding to escalate at
+        medium and then looking up the low rule gives an escalation with an
+        empty ladder that exhausts on its first assignment, which reads in
+        the journal like a policy decision and is actually a lookup bug.
+        """
+        effective = risk or tool.risk
+        rule = self.policy.rule_for(effective)
         now = self.clock.now()
         esc = Escalation(
             incident_id=incident_id,
             tool=tool.name,
             args=dict(args),
-            risk=tool.risk,
+            risk=effective,
             reason=reason,
             blast_radius=tool.blast_radius,
             ladder=rule.ladder,
