@@ -1,0 +1,25 @@
+name: rejection stops the action without stopping the run
+why_this_case_exists: >
+  A rejected action must not become a crashed run. The human said no to
+  one thing, not to the incident, and the supervisor has to carry on with
+  whatever else it had queued.
+
+incident:
+  title: Checkout p99 latency spike
+  service: checkout
+  symptom: latency and errors after deploy
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.21
+    latency_p99_ms: 2400
+    healthy: false
+
+decisions:
+  - decision: reject
+    note: not during the sale
+
+expect:
+  executed: [page_vendor, restart_service]
+  not_executed: [scale_deployment]
