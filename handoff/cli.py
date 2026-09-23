@@ -109,44 +109,94 @@ def _act_one() -> None:
 
 
 def _act_two() -> None:
-    _heading("ACT 2  nobody answers: the deadline decides, and it is written down")
+    _heading("ACT 2  nobody answers a medium action: it climbs the ladder")
     clock = ManualClock()
     system = build(clock=clock, world=World.sample(), seed=7)
     run = system.supervisor.open(Incident(
-        title="Orders database replication lag",
+        title="Checkout p99 latency spike",
         service="checkout",
-        symptom="replication lag climbing",
-        severity=Severity.SEV1,
+        symptom="latency and errors after deploy",
+        severity=Severity.SEV2,
     ))
-    system.world.database.replication_lag_s = 42.0
     system.supervisor.advance(run)
 
     escalation = system.engine.get(run.blocked_on)
     print(f"\n  raised     {escalation.tool} at risk {escalation.risk}")
     print(f"  ladder     {' -> '.join(escalation.ladder)}")
     print(f"  on expiry  {escalation.on_expiry}")
-    print(f"\n  nobody answers. advancing the clock instead of waiting.\n")
+    print("\n  Nobody answers. The clock is advanced rather than waited on.\n")
 
     for _ in range(5):
         if not system.engine.open():
             break
-        clock.advance(seconds=400)
+        clock.advance(seconds=310)
         for fired in system.engine.tick():
             attempt = fired.attempts[-1]
-            who = attempt.responder_id or "nobody available"
-            print(f"  t+{int((clock.now() - ManualClock.EPOCH).total_seconds()):>5}s  "
-                  f"timeout, now {fired.state} at {attempt.tier}/{who}")
+            who = attempt.responder_id or "nobody free"
+            elapsed = int((clock.now() - ManualClock.EPOCH).total_seconds())
+            print(f"  t+{elapsed:>5}s  timeout -> {fired.state:<12} now at {attempt.tier}/{who}")
     system.supervisor.advance(run)
 
-    _section("audit trail for that escalation")
+    _section("audit trail")
     print(escalation.audit())
+    print(
+        "\n  Two people were asked, neither answered, and the action was not\n"
+        "  taken. That is a decision, and the trail above is why it is\n"
+        "  defensible rather than merely unlucky."
+    )
 
-    _section("outcome")
-    print(run.report())
+
+def _act_two_b() -> None:
+    _heading("ACT 3  nobody answers a high risk action: it does the safer thing")
+    clock = ManualClock()
+    # Checkout is healthy here. The only fault is database replication lag,
+    # so the planner proposes a failover and nothing cheaper gets in first.
+    world = World(services={
+        "checkout": Service("checkout", replicas=6, error_rate=0.005,
+                            latency_p99_ms=180, healthy=True),
+    })
+    world.database.replication_lag_s = 42.0
+    system = build(clock=clock, world=world, seed=7)
+    run = system.supervisor.open(Incident(
+        title="Orders replication lag climbing",
+        service="checkout",
+        symptom="replication lag",
+        severity=Severity.SEV1,
+    ))
+    system.supervisor.advance(run)
+
+    escalation = system.engine.get(run.blocked_on)
+    tool = system.supervisor.tools.get(escalation.tool)
+    print(f"\n  proposed   {escalation.tool}({escalation.args})")
+    print(f"  risk       {escalation.risk}, reversible={tool.reversible}")
+    print(f"  blast      {escalation.blast_radius}")
+    print(f"  fallback   {tool.safe_fallback}")
+    print(f"  on expiry  {escalation.on_expiry}")
+    print(f"  paged      {escalation.assignee}, {escalation.deadline_seconds}s to answer")
+    print("\n  Nobody answers.\n")
+
+    clock.advance(seconds=200)
+    system.engine.tick()
+    system.supervisor.advance(run)
+
+    _section("what ran instead")
+    for action in run.executed:
+        line = f"  {action.tool}({action.args})"
+        if action.substituted_for:
+            line += f"   <- substituted for {action.substituted_for}"
+        print(line)
+    print(
+        "\n  The database was not failed over. It was put into read only mode,\n"
+        "  which is the declared safer action: writes are rejected and\n"
+        "  checkout degrades, but no in flight transaction is lost and the\n"
+        "  decision is reversible when somebody wakes up.\n"
+        "\n  The policy could not have chosen to just run the failover. There\n"
+        "  is no on_expiry value that approves an action nobody looked at."
+    )
 
 
 def _act_three() -> None:
-    _heading("ACT 3  the workers disagree, so a low risk action buys a review")
+    _heading("ACT 4  the workers disagree, so a low risk action buys a review")
     clock = ManualClock()
     world = World(services={
         "checkout": Service("checkout", replicas=6, error_rate=0.25,
@@ -182,6 +232,7 @@ def _act_three() -> None:
 def cmd_demo(args: argparse.Namespace) -> int:
     _act_one()
     _act_two()
+    _act_two_b()
     _act_three()
     _heading("done")
     print(
