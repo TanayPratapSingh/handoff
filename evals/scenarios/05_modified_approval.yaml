@@ -1,0 +1,28 @@
+name: an approver can edit the arguments before approving
+why_this_case_exists: >
+  Approve and reject is a false choice for an on call engineer who agrees
+  with the diagnosis and disagrees with the number. Without modify they
+  reject and do it by hand, and the system learns nothing.
+
+incident:
+  title: Checkout p99 latency spike
+  service: checkout
+  symptom: latency and errors after deploy
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.21
+    latency_p99_ms: 2400
+    healthy: false
+
+decisions:
+  - decision: modify
+    note: twelve is too many, nine is enough
+    modified_args:
+      service: checkout
+      replicas: 9
+
+expect:
+  end_state: resolved
+  executed: [scale_deployment]
