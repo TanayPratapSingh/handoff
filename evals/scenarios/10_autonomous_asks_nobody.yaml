@@ -1,0 +1,24 @@
+name: autonomous mode runs the medium action without asking
+why_this_case_exists: >
+  The opposite end of the range, kept so that the guarded scenarios are
+  measuring the policy rather than measuring the absence of a code path.
+  If this scenario and scenario 02 ever produce the same outcome then
+  autonomy is not wired to anything.
+
+autonomy: autonomous
+
+incident:
+  title: Checkout p99 latency spike
+  service: checkout
+  symptom: latency and errors after deploy
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.21
+    latency_p99_ms: 2400
+    healthy: false
+
+expect:
+  end_state: resolved
+  executed: [page_vendor, restart_service, scale_deployment]
