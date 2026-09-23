@@ -1,0 +1,22 @@
+name: a healthy service produces no actions at all
+why_this_case_exists: >
+  The null case. A system that always finds something to do is a system
+  that will eventually restart a healthy service during an unrelated
+  incident. Every proposal here should be dropped for lack of evidence.
+
+incident:
+  title: Someone reported checkout felt slow
+  service: checkout
+  symptom: user report
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.002
+    latency_p99_ms: 150
+    healthy: true
+
+expect:
+  end_state: resolved
+  not_executed: [restart_service, scale_deployment, failover_database, page_vendor]
+  rejected: [service_degraded]
