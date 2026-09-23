@@ -1,0 +1,24 @@
+name: guarded acts on cheap things without asking
+why_this_case_exists: >
+  If guarded autonomy asked about everything it would be observe mode with
+  extra steps, and the on call would stop reading the pages. This pins the
+  bottom of the range: low risk reversible actions run unattended.
+
+incident:
+  title: Checkout p99 latency spike
+  service: checkout
+  symptom: latency and errors after deploy
+  severity: sev2
+
+services:
+  - name: checkout
+    replicas: 6
+    error_rate: 0.21
+    latency_p99_ms: 2400
+    healthy: false
+
+expect:
+  executed: [page_vendor, restart_service]
+  escalated: [scale_deployment]
+  end_state: awaiting_human
+  confirmed: [service_degraded, capacity_shortfall]
