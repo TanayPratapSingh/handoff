@@ -66,6 +66,18 @@ class Aggregate:
             if not h.contested and h.support >= threshold
         )
 
+    def actionable(self, threshold: float = 0.6) -> list[str]:
+        """Hypotheses worth planning against: confirmed ones and contested ones.
+
+        Contested belongs here even though it is explicitly not confirmed.
+        A contested diagnosis is the case where a human most needs to see a
+        concrete proposal, and withholding the proposal until the system is
+        sure means the human is asked to adjudicate an abstraction. The
+        supervisor raises the risk of anything addressing a contested
+        hypothesis, so surfacing it costs a review rather than an action.
+        """
+        return sorted(set(self.confirmed(threshold)) | {v.name for v in self.contested()})
+
     def contested(self) -> list[HypothesisView]:
         return sorted(
             (h for h in self.hypotheses.values() if h.contested),

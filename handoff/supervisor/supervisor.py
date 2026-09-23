@@ -176,7 +176,7 @@ class Supervisor:
         )
         if subtask.capability == "remediation":
             interim = aggregate([r for r in run.results if r.ok])
-            subtask.args["hypotheses"] = interim.confirmed(self.confidence_threshold)
+            subtask.args["hypotheses"] = interim.actionable(self.confidence_threshold)
 
         self._emit(EventKind.SUBTASK_STARTED, run, subtask=subtask.id, worker=worker.name)
         try:
@@ -265,7 +265,9 @@ class Supervisor:
             reason = proposal.reason
             if risk is not tool.risk:
                 reason += f" (risk raised to {risk}: the diagnosis is contested)"
-            escalation = self.engine.raise_for(run.incident.id, tool, proposal.args, reason)
+            escalation = self.engine.raise_for(
+                run.incident.id, tool, proposal.args, reason, risk=risk
+            )
             run.escalation_ids.append(escalation.id)
             if escalation.state.is_terminal:
                 self._settle(run, escalation.id)
