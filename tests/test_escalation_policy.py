@@ -1,3 +1,4 @@
+import itertools
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,12 +7,20 @@ from handoff.core.errors import ConfigError
 from handoff.core.types import Autonomy, OnExpiry, Risk
 from handoff.escalation.policy import Policy, Rule
 
+_TMP = Path(tempfile.mkdtemp(prefix="handoff-policy-"))
+_COUNTER = itertools.count()
+
 
 def write(text):
-    tmp = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)
-    tmp.write(text)
-    tmp.close()
-    return Path(tmp.name)
+    """Write a policy file and return its path.
+
+    Policy.from_config takes a path, so the file has to outlive the
+    writing of it. mkdtemp plus write_text does that without leaving a
+    dangling handle open for the rest of the test run.
+    """
+    path = _TMP / f"policy-{next(_COUNTER)}.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
 
 
 FULL = """

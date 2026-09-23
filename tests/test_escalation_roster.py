@@ -82,12 +82,14 @@ class TestRosterConfig(unittest.TestCase):
                 self.assertTrue(roster.on_tier(tier), f"no responder on tier {tier}")
 
     def test_tier_with_no_responders_rejected(self):
-        tmp = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)
-        tmp.write("tiers:\n  - primary\n  - ghost\nresponders:\n  - id: a\n"
-                  "    name: A\n    tier: primary\n")
-        tmp.close()
+        path = Path(tempfile.mkdtemp(prefix="handoff-roster-")) / "roster.yaml"
+        path.write_text(
+            "tiers:\n  - primary\n  - ghost\nresponders:\n  - id: a\n"
+            "    name: A\n    tier: primary\n",
+            encoding="utf-8",
+        )
         with self.assertRaises(ConfigError) as ctx:
-            Roster.from_config(Path(tmp.name))
+            Roster.from_config(path)
         self.assertIn("ghost", str(ctx.exception))
 
 

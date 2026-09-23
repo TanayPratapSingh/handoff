@@ -71,5 +71,7 @@ class Event:
         return out
 
     def summary(self) -> str:
-        bits = " ".join(f"{k}={v}" for k, v in self.detail.items() if not isinstance(v, dict | list))
+        bits = " ".join(
+            f"{k}={v}" for k, v in self.detail.items() if not isinstance(v, dict | list)
+        )
         return f"[{iso(self.at)}] {self.kind} {self.incident_id} {bits}".rstrip()

@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from handoff.core.clock import ManualClock
-from handoff.core.types import Autonomy, Decision, Severity
+from handoff.core.types import Decision, Severity
 from handoff.escalation.policy import Policy
 from handoff.escalation.roster import Roster
 from handoff.supervisor.incident import Incident
