@@ -145,11 +145,9 @@ production behaviour.
 
 | | |
 |---|---|
-| tests | 200, all passing |
+| tests | 215, all passing |
 | scenarios | 11, all passing |
 | suite wall time | 0.08s to 0.10s over three runs |
-| source | 3666 lines across 35 modules |
-| tests | 1726 lines |
 | tools | 15, across five risk levels |
 | third party dependencies | 0 |
 
