@@ -339,6 +339,16 @@ class TestDeadlineHold(EngineCase):
         self.engine.tick()
         self.assertEqual(len(self.engine.open()), 1)
 
+    def test_deciding_a_held_escalation_does_not_free_the_responder_twice(self):
+        held = self.raise_one("delete_volume", {"volume": "pvc-7"})
+        self.clock.advance(seconds=600)
+        self.engine.tick()
+        self.raise_one("delete_volume", {"volume": "pvc-8"})
+        self.assertEqual(self.roster.get("one").open_count, 1)
+        self.engine.decide(held.id, "one", Decision.APPROVE)
+        self.assertEqual(held.state, EscalationState.APPROVED)
+        self.assertEqual(self.roster.get("one").open_count, 1)
+
 
 class TestQuorum(EngineCase):
     def setUp(self):

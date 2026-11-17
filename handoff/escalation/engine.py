@@ -244,6 +244,9 @@ class EscalationEngine:
         attempt.answered = True
         attempt.decision = decision
         attempt.note = note
+        if esc.state is EscalationState.HELD:
+            # The hold freed this responder, and every branch below frees them again.
+            self.roster.acquire(responder_id)
         esc.state = EscalationState.ASSIGNED
 
         self._emit(
