@@ -208,13 +208,11 @@ class EscalationEngine:
             tiers_tried=esc.tiers_tried(),
             attempts=len(esc.attempts),
         )
-        self._release(esc)
         return esc
 
     def _release(self, esc: Escalation) -> None:
-        for attempt in esc.attempts:
-            if attempt.responder_id:
-                self.roster.release(attempt.responder_id)
+        # Earlier responders were freed when they timed out, deferred or signed.
+        self._release_one(esc.attempts[-1].responder_id)
 
     # deciding
 

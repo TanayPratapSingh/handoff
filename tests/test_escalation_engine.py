@@ -199,6 +199,35 @@ class TestDeadlineEscalate(EngineCase):
         with self.assertRaises(ValueError):
             self.engine.decide(esc.id, "three", Decision.APPROVE)
 
+    def single_seat(self):
+        """Responder one can hold one escalation, so a double release shows up."""
+        return [
+            Responder("one", "One", "t1", frozenset({"infra"}), max_concurrent=1),
+            Responder("two", "Two", "t2", frozenset({"infra"})),
+            Responder("three", "Three", "t3", frozenset({"infra"})),
+        ]
+
+    def test_approval_does_not_free_a_responder_who_already_timed_out(self):
+        self.build(self.engine.policy.rule_for(Risk.HIGH), self.single_seat())
+        first = self.raise_one()
+        self.clock.advance(seconds=300)
+        self.engine.tick()
+        second = self.raise_one()
+        self.assertEqual(second.assignee, "one")
+        self.engine.decide(first.id, "two", Decision.APPROVE)
+        self.assertEqual(self.roster.get("one").open_count, 1)
+        self.assertEqual(self.raise_one().assignee, "two")
+
+    def test_exhaustion_does_not_free_a_responder_who_already_deferred(self):
+        self.build(self.engine.policy.rule_for(Risk.HIGH), self.single_seat())
+        first = self.raise_one()
+        self.engine.decide(first.id, "one", Decision.DEFER)
+        self.assertEqual(self.raise_one().assignee, "one")
+        self.engine.decide(first.id, "two", Decision.DEFER)
+        self.engine.decide(first.id, "three", Decision.DEFER)
+        self.assertEqual(first.state, EscalationState.EXHAUSTED)
+        self.assertEqual([r.open_count for r in self.roster.responders.values()], [1, 0, 0])
+
 
 if __name__ == "__main__":
     unittest.main()
